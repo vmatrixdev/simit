@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "SimIt - Interactive Visualizer Copilot",
+  "version": "1.0.0",
+  "description": "Zero-prompt, real-time interactive visual simulations for technical papers, equations, and algorithms.",
+  "permissions": [
+    "sidePanel",
+    "contextMenus",
+    "activeTab",
+    "scripting",
+    "offscreen",
+    "storage"
+  ],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "src/sidepanel/sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content-script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "sandbox": {
+    "pages": [
+      "src/sandbox/sandbox.html"
+    ]
+  },
+  "content_security_policy": {
+    "sandbox": "sandbox allow-scripts; default-src 'none'; style-src 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:;"
+  }
+}

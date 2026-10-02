@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SimIt Copilot</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Top Navigation Bar -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="logo">
+          <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+          <span class="logo-text">SimIt</span>
+        </div>
+        <span class="status-pill status-ready" id="status-pill">Ready</span>
+      </div>
+
+      <div class="header-right">
+        <!-- Auto-appearing Repair Icon (🛠️) -->
+        <button class="btn-repair" id="btn-repair" style="display: none;" title="An error occurred during interaction. Click to auto-repair.">
+          <span class="repair-icon">🛠️</span>
+          <span class="repair-text">Repair with AI</span>
+        </button>
+
+        <!-- Export Menu Dropdown -->
+        <div class="dropdown-wrapper">
+          <button class="btn-icon" id="btn-export-toggle" title="Export Simulation & ATIF">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+            </svg>
+          </button>
+          <div class="dropdown-menu" id="export-menu" style="display: none;">
+            <button class="dropdown-item" id="btn-export-html">
+              <span>📄 Export Simulation (HTML)</span>
+            </button>
+            <button class="dropdown-item" id="btn-export-atif">
+              <span>📊 Download ATIF (.atif.json)</span>
+            </button>
+            <button class="dropdown-item" id="btn-copy-atif">
+              <span>📋 Copy ATIF to Clipboard</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Settings Button -->
+        <button class="btn-icon" id="btn-settings" title="Model & BYOK Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="app-main">
+      <!-- Empty State View -->
+      <section class="view-state" id="state-empty">
+        <div class="empty-card">
+          <div class="empty-icon-glow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+            </svg>
+          </div>
+          <h2>Zero-Prompt Interactive Simulations</h2>
+          <p>Highlight any text, scientific formula, or algorithm on any page, right-click, and select <strong>"SimIt"</strong>.</p>
+          <div class="feature-tags">
+            <span class="tag">⚡ Gemini Nano Local</span>
+            <span class="tag">📐 D3 & KaTeX</span>
+            <span class="tag">⏱️ 1-Shot Self-Repair</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Loading / Synthesizing View -->
+      <section class="view-state" id="state-loading" style="display: none;">
+        <div class="loading-card">
+          <div class="spinner"></div>
+          <h3 id="loading-stage-title">Synthesizing Simulation...</h3>
+          <p id="loading-stage-desc">Ingesting technical context and formulating archetypes.</p>
+        </div>
+      </section>
+
+      <!-- Active Simulation View -->
+      <section class="view-state" id="state-simulation" style="display: none;">
+        <div class="sim-header-card">
+          <h2 id="sim-title">Simulation Title</h2>
+          <p id="sim-desc">Simulation description will appear here.</p>
+        </div>
+
+        <div class="iframe-container">
+          <iframe id="sandbox-iframe" src="../sandbox/sandbox.html" sandbox="allow-scripts"></iframe>
+        </div>
+
+        <div class="controls-dock" id="controls-dock">
+          <div class="dock-header">
+            <span>Dynamic Parameters</span>
+            <button class="btn-reset" id="btn-reset-params">Reset</button>
+          </div>
+          <div class="controls-list" id="controls-list">
+            <!-- Dynamic parameter controls will be mounted here -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Error / Fallback Card -->
+      <section class="view-state" id="state-error" style="display: none;">
+        <div class="error-card">
+          <div class="error-badge">Generation Error</div>
+          <h3 id="error-title">Unable to verify simulation</h3>
+          <p id="error-message">Error details...</p>
+          <button class="btn-primary" id="btn-retry">Retry Generation</button>
+        </div>
+      </section>
+    </main>
+
+    <!-- BYOK Settings Modal -->
+    <div class="modal-overlay" id="modal-settings" style="display: none;">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Model & Provider Settings</h3>
+          <button class="btn-close" id="btn-close-settings">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="provider-select">Active Provider</label>
+            <select id="provider-select">
+              <option value="chrome-prompt-api">Chrome Prompt API (Gemini Nano - Default $0)</option>
+              <option value="anthropic">Anthropic Claude (BYOK)</option>
+              <option value="google-gemini">Google Gemini Cloud (BYOK)</option>
+              <option value="openai-compatible">OpenAI-Compatible / Ollama (BYOK)</option>
+            </select>
+          </div>
+
+          <!-- Anthropic Fields -->
+          <div class="provider-fields" id="fields-anthropic" style="display: none;">
+            <div class="form-group">
+              <label for="anthropic-key">Anthropic API Key</label>
+              <input type="password" id="anthropic-key" placeholder="sk-ant-...">
+            </div>
+            <div class="form-group">
+              <label for="anthropic-model">Model Name</label>
+              <input type="text" id="anthropic-model" value="claude-3-5-sonnet-20241022">
+            </div>
+          </div>
+
+          <!-- Gemini Fields -->
+          <div class="provider-fields" id="fields-gemini" style="display: none;">
+            <div class="form-group">
+              <label for="gemini-key">Gemini API Key</label>
+              <input type="password" id="gemini-key" placeholder="AIzaSy...">
+            </div>
+            <div class="form-group">
+              <label for="gemini-model">Model Name</label>
+              <input type="text" id="gemini-model" value="gemini-2.5-flash">
+            </div>
+          </div>
+
+          <!-- OpenAI / Ollama Fields -->
+          <div class="provider-fields" id="fields-openai" style="display: none;">
+            <div class="form-group">
+              <label for="openai-url">Base URL</label>
+              <input type="text" id="openai-url" value="http://localhost:11434/v1">
+            </div>
+            <div class="form-group">
+              <label for="openai-key">API Key (Optional)</label>
+              <input type="password" id="openai-key" placeholder="Optional for local Ollama">
+            </div>
+            <div class="form-group">
+              <label for="openai-model">Model Name</label>
+              <input type="text" id="openai-model" value="deepseek-r1:8b">
+            </div>
+          </div>
+
+          <div class="form-group checkbox-group">
+            <input type="checkbox" id="chk-fallback" checked>
+            <label for="chk-fallback">Automatically fallback to BYOK if Gemini Nano is unavailable</label>
+          </div>
+
+          <div class="status-message" id="settings-status-msg" style="display: none;"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" id="btn-test-connection">Test Connection</button>
+          <button class="btn-primary" id="btn-save-settings">Save Settings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="sidepanel.ts"></script>
+</body>
+</html>
