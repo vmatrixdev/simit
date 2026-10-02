@@ -20,10 +20,27 @@ declare global {
     Tweakpane?: any;
     functionPlot?: any;
     cytoscape?: any;
+    math?: any;
+    jstat?: any;
+    Matter?: any;
+    matter?: any;
+    glMatrix?: any;
+    glmatrix?: any;
   }
 }
 
 window.__currentSimParams = currentParams;
+if (typeof window !== 'undefined') {
+  if (!window.jstat && (window as any).jStat) {
+    window.jstat = (window as any).jStat;
+  }
+  if (!window.matter && (window as any).Matter) {
+    window.matter = (window as any).Matter;
+  }
+  if (!window.glmatrix && (window as any).glMatrix) {
+    window.glmatrix = (window as any).glMatrix;
+  }
+}
 
 function cleanupPane() {
   if (activePane) {
@@ -106,6 +123,11 @@ window.addEventListener('message', (event) => {
           'Tweakpane',
           'functionPlot',
           'cytoscape',
+          'math',
+          'jstat',
+          'Matter',
+          'matter',
+          'glMatrix',
           'window',
           'document',
           `"use strict";
@@ -119,6 +141,11 @@ window.addEventListener('message', (event) => {
           window.Tweakpane,
           window.functionPlot,
           window.cytoscape,
+          window.math,
+          window.jstat || (window as any).jStat,
+          window.Matter || (window as any).matter,
+          window.Matter || (window as any).matter,
+          window.glMatrix || (window as any).glmatrix,
           window,
           document
         );

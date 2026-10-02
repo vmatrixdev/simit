@@ -21,6 +21,11 @@ export interface PreFlightMockGlobals {
   Tweakpane?: any;
   functionPlot?: any;
   cytoscape?: any;
+  math?: any;
+  jstat?: any;
+  Matter?: any;
+  matter?: any;
+  glMatrix?: any;
 }
 
 export interface ExtractedSimulationTags {
@@ -472,6 +477,10 @@ export async function runPreFlightSmokeTest(
       const tweakpaneInstance = globals?.Tweakpane || (typeof window !== 'undefined' ? (window as any).Tweakpane : undefined);
       const functionPlotInstance = globals?.functionPlot || (typeof window !== 'undefined' ? (window as any).functionPlot : undefined);
       const cytoscapeInstance = globals?.cytoscape || (typeof window !== 'undefined' ? (window as any).cytoscape : undefined);
+      const mathInstance = globals?.math || (typeof window !== 'undefined' ? (window as any).math : undefined);
+      const jstatInstance = globals?.jstat || (typeof window !== 'undefined' ? ((window as any).jstat || (window as any).jStat) : undefined);
+      const matterInstance = globals?.Matter || globals?.matter || (typeof window !== 'undefined' ? ((window as any).Matter || (window as any).matter) : undefined);
+      const glMatrixInstance = globals?.glMatrix || (typeof window !== 'undefined' ? ((window as any).glMatrix || (window as any).glmatrix) : undefined);
 
       // Create function scope with standard available globals
       // Disallow window.parent, document.cookie, etc.
@@ -482,6 +491,11 @@ export async function runPreFlightSmokeTest(
         'Tweakpane',
         'functionPlot',
         'cytoscape',
+        'math',
+        'jstat',
+        'Matter',
+        'matter',
+        'glMatrix',
         'window',
         'document',
         `"use strict";
@@ -495,6 +509,11 @@ export async function runPreFlightSmokeTest(
         tweakpaneInstance,
         functionPlotInstance,
         cytoscapeInstance,
+        mathInstance,
+        jstatInstance,
+        matterInstance,
+        matterInstance,
+        glMatrixInstance,
         typeof window !== 'undefined' ? window : {},
         typeof document !== 'undefined' ? document : {}
       );

@@ -33,8 +33,13 @@
   },
   "dependencies": {
     "@types/cytoscape": "^3.21.9",
+    "@types/matter-js": "^0.20.2",
     "cytoscape": "^3.34.3",
     "function-plot": "^1.25.4",
+    "gl-matrix": "^3.4.4",
+    "jstat": "^1.9.6",
+    "mathjs": "^15.2.0",
+    "matter-js": "^0.20.0",
     "tweakpane": "^4.0.5"
   }
 }

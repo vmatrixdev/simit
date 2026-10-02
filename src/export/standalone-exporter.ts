@@ -21,6 +21,10 @@ export interface StandaloneExportOptions {
   tweakpaneSource?: string;
   functionPlotSource?: string;
   cytoscapeSource?: string;
+  mathSource?: string;
+  jstatSource?: string;
+  matterSource?: string;
+  glMatrixSource?: string;
 }
 
 export function generateStandaloneSimulationHtml(options: StandaloneExportOptions): string {
@@ -36,7 +40,11 @@ export function generateStandaloneSimulationHtml(options: StandaloneExportOption
     katexCssSource = '',
     tweakpaneSource = '',
     functionPlotSource = '',
-    cytoscapeSource = ''
+    cytoscapeSource = '',
+    mathSource = '',
+    jstatSource = '',
+    matterSource = '',
+    glMatrixSource = ''
   } = options;
 
   // Transform "export default" to executable return statement
@@ -239,6 +247,17 @@ export function generateStandaloneSimulationHtml(options: StandaloneExportOption
   ${tweakpaneSource ? `<script>${tweakpaneSource}</script>` : '<script src="https://cdn.jsdelivr.net/npm/tweakpane@4"></script>'}
   ${functionPlotSource ? `<script>${functionPlotSource}</script>` : '<script src="https://unpkg.com/function-plot/dist/function-plot.js"></script>'}
   ${cytoscapeSource ? `<script>${cytoscapeSource}</script>` : '<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>'}
+  ${mathSource ? `<script>${mathSource}</script>` : '<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.1/math.js"></script>'}
+  ${jstatSource ? `<script>${jstatSource}</script>` : '<script src="https://cdn.jsdelivr.net/npm/jstat@1.9.6/dist/jstat.min.js"></script>'}
+  ${matterSource ? `<script>${matterSource}</script>` : '<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>'}
+  ${glMatrixSource ? `<script>${glMatrixSource}</script>` : '<script src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/3.4.3/gl-matrix-min.js"></script>'}
+  <script>
+    if (typeof window !== 'undefined') {
+      if (!window.jstat && window.jStat) window.jstat = window.jStat;
+      if (!window.matter && window.Matter) window.matter = window.Matter;
+      if (!window.glmatrix && window.glMatrix) window.glmatrix = window.glMatrix;
+    }
+  </script>
 </head>
 <body>
   <div class="container">

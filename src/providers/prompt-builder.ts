@@ -23,14 +23,71 @@ The host container #sim-root currently has measured viewport dimensions from the
 Structure your layout to fit dynamically within these bounds without horizontal or vertical overflow.
 
 ### PRE-LOADED DECLARATIVE LIBRARIES
-The following libraries are available in the global scope inside the sandbox:
-1. \`Tweakpane\` (v4.x): Use for parameter controls. You define parameters in the exported object's \`parameters\` array; SimIt automatically wires Tweakpane with zero-latency updates.
-2. \`functionPlot\` (v1.x): Global \`functionPlot\`. Use for 2D Cartesian curves: functionPlot({ target: container, width: ${defaultWidth}, height: ${defaultHeight - 80}, data: [...] }).
-3. \`cytoscape\` (v3.x): Global \`cytoscape\`. Use for DAGs, trees, and state machine graphs: cytoscape({ container, elements: [...], layout: { name: 'breadthfirst' } }).
-4. \`anime\` (v3.x): Global \`anime\`. Use for timelines, tweens, and smooth state transitions.
-5. \`katex\` (v0.16.x): Global \`katex\`. Use \`katex.render(formula, domElement)\` for rendering LaTeX equations.
-6. \`d3\` (v7.x): Global \`d3\`. Use for geometric projections, axes, and scales.
-7. HTML5 Canvas 2D: Native canvas element created and appended to container.
+The following 8 libraries are available in the global scope inside the sandbox:
+
+1. \`Tweakpane (v4.x)\` — Parameter Controls & Scrubber UI
+   - USE ONLY FOR: Interactive sliders, numeric bounds, playback buttons, and timeline scrubbers.
+   - FORBIDDEN: Do not write manual HTML \`<input>\`, \`<button>\`, or flex wrappers. SimIt automatically binds the exported \`parameters\` array into Tweakpane with zero latency.
+
+2. \`math (Math.js v12.x)\` — Linear Algebra & Symbolic Computing
+   - USE FOR: Dot products, matrix multiplication, projections, inverses, determinants, and complex numbers.
+   - FORBIDDEN: Do not write manual nested for-loops or hand-rolled array arithmetic for linear algebra.
+   - Pattern: \`const scores = math.divide(math.multiply(Q, math.transpose(K)), math.sqrt(d_k));\`
+
+3. \`jstat (v1.9.x)\` — Probability & Statistical Distributions
+   - USE FOR: Normal distributions, Poisson curves, Beta distributions, and sampling functions.
+   - FORBIDDEN: Do not write custom Gaussian/CDF approximations.
+   - Pattern: \`const density = jstat.normal.pdf(x, PARAMS.mean, PARAMS.std);\`
+
+4. \`functionPlot (v1.x)\` — 2D Cartesian Function Curves
+   - USE FOR: Continuous equations, loss surfaces, activations, and derivatives (f(x), sigmoid, ReLU).
+   - FORBIDDEN: Do not build raw SVG axes or manual coordinate mappings for mathematical curves.
+   - Pattern: \`functionPlot({ target: '#plot', width: ${defaultWidth}, height: ${defaultHeight - 80}, data: [{ fn: 'x^2' }] });\`
+
+5. \`cytoscape (v3.x)\` — Topologies, Systems, & C4 Hierarchies
+   - USE FOR: System architectures, cloud/VPC boundaries, DAGs, HNSW layers, and network routing.
+   - FORBIDDEN: Do not use D3 force layouts for structured graphs or compound container boxes.
+   - Pattern: Use compound nodes (\`parent: 'vpc_id'\`) for boundaries; enable pan/zoom.
+
+6. \`d3 (v7.x)\` — Math Scales & Spatial Projections ONLY
+   - USE ONLY FOR: Coordinate scales (\`d3.scaleLinear\`, \`d3.scaleLog\`), interpolators (\`d3.interpolateViridis\`), and data transformations (\`d3.pie\`, \`d3.arc\`).
+   - STRICT CONSTRAINT: DO NOT use D3 for DOM manipulations (\`.selectAll().data().join()\`). Let Canvas or Cytoscape own rendering to prevent syntax errors.
+
+7. \`Canvas 2D\` + \`anime (v3.x)\` — Physical Motion & Step Transitions
+   - USE FOR: High-density particle dynamics, phase-space trajectories, vector flows, and sequence step animations.
+   - Pattern: Use Canvas for the drawing surface; drive state parameters or timeline steps using \`anime({ targets: state, ... })\`.
+
+8. \`katex (v0.16.x)\` — Equation & Label Typesetting
+   - USE FOR: Dynamic mathematical labels, dynamic parameter readouts, and formula headers.
+   - Pattern: \`katex.render(String.raw\`\\sigma(z) = \\frac{1}{1 + e^{-z}}\`, labelContainer);\`
+
+9. \`Matter (Matter.js v0.20.x)\` — 2D Rigid-Body Physics & Collisions
+   - USE FOR: Physical particle dynamics, ballistics, spring-mass collisions, momentum transfer, and gravity.
+   - Pattern: \`const engine = Matter.Engine.create(); const box = Matter.Bodies.rectangle(x, y, w, h); Matter.Composite.add(engine.world, [box]);\`
+
+10. \`glMatrix (v3.4.x)\` — High-Performance Projections & Camera Matrices
+   - USE FOR: Spatial rotations, 2D/3D camera projections, and quaternion math.
+   - Pattern: \`const proj = glMatrix.mat4.create(); glMatrix.mat4.perspective(proj, Math.PI / 4, width / height, 0.1, 100);\`
+
+### DIAGRAM ARCHETYPES & CANONICAL LIBRARY COMBINATIONS
+Mapping specific diagram and simulation archetypes to a strict combination of 2–3 libraries keeps token usage low, prevents runtime conflicts, and ensures high first-run reliability.
+In \`<simulation_thinking>\`, you MUST explicitly classify the technical concept into one of the following 8 canonical archetypes and restrict your implementation to that exact trio:
+
+| Diagram / Simulation Archetype | Primary Rendering & Physics | Math / Data Engine | UI & Controls | Why This Combination Works |
+| --- | --- | --- | --- | --- |
+| **Interactive Sequence Stepper** (OAuth, TLS handshakes, Raft heartbeats, gRPC calls) | **Canvas 2D** + **Anime.js** | Pure JS Event Array | **Tweakpane** | Canvas renders stable actor lifelines; \`Anime.js\` tweens active in-flight request/response arrows; \`Tweakpane\` provides the step-by-step scrubber. |
+| **C4 Architecture & Cloud Topologies** (VPC boundaries, microservices, ECS/RDS failovers) | **Cytoscape.js** (Compound Nodes) | Internal DAG Layout (\`dagre\`/\`breadthfirst\`) | **Tweakpane** | Cytoscape compound nodes model hierarchical boundaries (System → Container → Component) with built-in zoom/pan; \`Tweakpane\` toggles node failures or traffic rates. |
+| **Continuous Math Curves & Activation Functions** (Sigmoid, GeLU, Softmax, Loss gradients) | **functionPlot** | **KaTeX** (dynamic LaTeX headers) | **Tweakpane** | \`functionPlot\` builds coordinate grids and plots equations from raw strings ($f(x)$); \`KaTeX\` renders mathematical notation; \`Tweakpane\` tweaks coefficients ($\\tau, \\alpha, \\beta$). |
+| **Neural Internals & Attention Heatmaps** (Transformer attention weights, QK projections) | **HTML5 Canvas 2D** + **d3.js** (scales only) | **Math.js** (matrix multiplication) | **Tweakpane** | \`Math.js\` calculates $QK^T / \\sqrt{d_k}$ in 2 lines; \`d3.scaleSequential\` maps scores to color ramps; Canvas paints the $N \\times N$ matrix grid. |
+| **Vector Space & Metric Retrieval (RAG / HNSW)** (High-dimensional projections, k-NN search) | **Canvas 2D** (or **Cytoscape**) | **gl-matrix** (projections) + **Math.js** (dot/cosine) | **Tweakpane** + **KaTeX** | \`gl-matrix\` handles spatial rotations and 2D/3D camera projections; \`Math.js\` computes distance metrics; \`KaTeX\` displays dynamic readouts. |
+| **Statistical & Probabilistic Models** (Gaussian Mixture Models, Markov chains, Bayesian updates) | **Canvas 2D** (distribution curves) | **jstat** (PDF/CDF sampling) + **d3.js** (scales) | **Tweakpane** | \`jstat\` handles probability distribution curves and sampling natively; \`d3.scaleLinear\` maps domains to pixels; \`Tweakpane\` sweeps mean ($\\mu$) and variance ($\\sigma^2$). |
+| **Data Pipelines & Streaming Buffers** (Kafka queues, backpressure, ETL pipelines) | **Cytoscape.js** + **Anime.js** | Pure JS Queue State Machine | **Tweakpane** | Cytoscape draws pipeline stages and queues; \`Anime.js\` animates token pulses flowing along edges; \`Tweakpane\` controls ingestion RPS vs. worker latency to demonstrate backpressure. |
+| **Physical Particle Dynamics & Flow Fields** (Particle clustering, vector fields, momentum) | **HTML5 Canvas 2D** | **Matter.js** (or standard vector math) | **Tweakpane** | Avoids complex SVG DOM nodes; Canvas paints high-density particles at 60 FPS; \`Tweakpane\` adjusts physical properties like friction, gravity, or field strength. |
+
+### KEY ARCHITECTURAL GUIDELINES
+1. **Keep D3 Strictly for Math Transformations:** Never let the model use D3 to construct interactive DOM trees (\`.selectAll().join()\`). Restrict it to \`d3.scaleLinear\`, \`d3.scaleLog\`, and \`d3.interpolate\` to prevent syntax hallucinations and version mismatches.
+2. **Delegate UI Exclusively to Tweakpane:** Banning handwritten HTML sliders, steppers, and buttons eliminates roughly 40% of the boilerplate token payload.
+3. **Use Cytoscape for Any Node-and-Edge Structure:** Whether a cloud network, a call graph, or a layered RAG index, Cytoscape handles zoom, pan, hitboxes, and layouts out of the box.
 
 ### RESTRICTIONS & CSP RULES
 - NO network access: do NOT use \`fetch\`, \`XMLHttpRequest\`, \`WebSocket\`, or external CDN scripts.
