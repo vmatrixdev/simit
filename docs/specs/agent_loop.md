@@ -1,30 +1,31 @@
 # Agent Loop & System Prompt Specification
 
-This document specifies the autonomous **Agent Loop** and the **System Prompt Contract** for **SimIt**. It details how technical context is ingested, how the model is informed of sandboxed libraries and capabilities, and how the extension manages both **pre-flight automated self-repair** and **interactive runtime error recovery via an auto-appearing repair icon**.
+This document specifies the autonomous **Agent Loop**, the **System Prompt Contract**, and the **Context Rolling Engine** for **SimIt**. It details how technical context and viewport bounds are ingested, how reasoning is decoupled from code synthesis, the declarative sandboxed library contracts, and how the extension manages both pre-flight automated repair and infinite conversational evolution.
 
 ---
 
 ## 1. The Autonomous Agent Loop
 
-The agent loop orchestrates code generation, offscreen smoke testing, automated error diagnosis, and reactive rendering in the sandboxed iframe, with continuous error monitoring during user interactions.
+The agent loop orchestrates code generation, offscreen smoke testing, automated error diagnosis, and reactive rendering in the sandboxed iframe, with continuous error monitoring and conversational iteration.
 
 ```mermaid
 flowchart TD
-    Start(["User Highlights Text & Clicks 'SimIt'"]) --> Harvest["Context Harvester<br/>• Selected text & math<br/>• Section headings & captions"]
+    Start(["User Highlights Text & Triggers 'SimIt'"]) --> Harvest["Context Harvester<br/>• Selective bounded scope (text, math, headers)<br/>• Container Viewport: width: 380, height: 450"]
     
-    Harvest --> Compose["Prompt Composer<br/>• System Prompt (Sandbox Contract)<br/>• Harvested Technical Context<br/>• Parameter Schema Instructions"]
+    Harvest --> Compose["Prompt Composer<br/>• Declarative Sandbox API Contracts<br/>• Injected Viewport Dimensions<br/>• Decoupled Reasoning Tags"]
     
     Compose --> Dispatch{"Active Model Engine"}
     Dispatch -->|"Default ($0 Cost)"| Nano["Gemini Nano / Local Gemma<br/>(Chrome Prompt API)"]
-    Dispatch -->|"Configured"| BYOK["BYOK Frontier Model<br/>(Claude / Gemini Flash / Custom URL)"]
+    Dispatch -->|"BYOK Configured"| BYOK["BYOK Frontier Model<br/>(Claude 3.5 Sonnet / Gemini Flash / Ollama)"]
     
-    Nano --> CodeOutput["Raw simEngine ES Module"]
-    BYOK --> CodeOutput
+    Nano --> TagParser["Tag Parser & Code Extractor<br/>• Logs <simulation_thinking> to ATIF<br/>• Extracts <simulation_code> for execution"]
+    BYOK --> TagParser
+    TagParser --> CodeOutput["Raw Module Code"]
     
     subgraph PreFlightHarness["Offscreen Pre-Flight Harness (Validation Sandbox)"]
         direction TB
-        CodeOutput --> Load["Instantiate Module in Headless Iframe"]
-        Load --> SmokeTest["100ms Smoke Test<br/>• Execute init() with defaults<br/>• Test parameter update() with boundary values"]
+        CodeOutput --> Load["Instantiate Module in Headless Hidden Iframe"]
+        Load --> SmokeTest["100ms Smoke Test<br/>• Execute init() with injected container & defaults<br/>• Test parameter update() with boundary values"]
         SmokeTest --> Check{"Runtime Error<br/>or Exception?"}
     end
 
@@ -35,10 +36,15 @@ flowchart TD
     
     subgraph SidePanel["Chrome Side Panel Runtime (sandbox.html)"]
         direction TB
-        Deliver --> MountUI["Mount Dynamic Parameter UI<br/>(Sliders, Steppers, Timeline Controls)"]
-        MountUI --> RunSim["Execute simEngine at 60 FPS<br/>• D3 Spatial Projections<br/>• Anime.js Timelines & Scrubbers<br/>• KaTeX Formulas"]
-        RunSim --> UserInteract["User Adjusts Sliders / Scrubber"]
-        UserInteract -->|"Reactive State Update"| RunSim
+        Deliver --> MountUI["Mount Tweakpane Parameter Pane<br/>(Zero-latency reactive sliders)"]
+        MountUI --> RunSim["Execute Declarative Libraries at 60 FPS<br/>• functionPlot (2D curves)<br/>• Cytoscape (DAGs & concept graphs)<br/>• Anime.js & Canvas 2D (time transitions)<br/>• KaTeX (math typesetting)"]
+        RunSim --> UserInteract{"User Action"}
+        
+        UserInteract -->|"Parametric Tweak"| DirectUpdate["Tweakpane.updateParams()<br/>(0ms, Zero LLM Call)"]
+        DirectUpdate --> RunSim
+        
+        UserInteract -->|"Structural Evolution"| ContextRolling["Dual-Track Evolution (Chips or Chat)<br/>• Passes Static Paper Anchor<br/>• Passes Active <simulation_code> snapshot<br/>• Slides last 2 chat turns"]
+        ContextRolling --> Compose
         
         RunSim -.->|"Console Error Intercepted"| RepairBadge["Auto-Appearing Repair Icon (🛠️)<br/>'An error occurred. Click to repair'"]
     end
@@ -49,246 +55,187 @@ flowchart TD
 
 ---
 
-## 2. System Prompt Architecture
+## 2. Prompting Strategy & Reasoning Decoupling
 
-### 2.1 Core Objectives of the System Prompt
-The system prompt must achieve three goals:
-1. **Define the persona and mission**: Generate a playable, visual, interactive simulation (`simEngine` ES module) rather than text explanations.
-2. **Explicitly define sandbox capabilities**: Instruct the model exactly which libraries, globals, DOM elements, and helper methods are available inside the isolated execution environment.
-3. **Enforce a strict output schema**: Constrain the output to executable JavaScript adhering to an expected lifecycle contract (`init`, `update`, `step`, `destroy`).
+### 2.1 Ban on "Code Only" Directives
+Prompting directives such as *"Return ONLY executable JavaScript without explanation"* suppress internal chain-of-thought tokens, severely degrading spatial layout calculations, mathematical equations, and phase transition logic.
+
+### 2.2 Explicit Tag Separation
+The system prompt mandates explicit structural tags:
+1. `<simulation_thinking>...</simulation_thinking>`: The model writes out the mathematical formulation, coordinate systems, parameter domains, and step plans.
+2. `<simulation_code>...</simulation_code>`: The model writes the complete, self-contained ES module. The parser extracts strictly the code payload for sandbox evaluation while logging the thinking trace to ATIF telemetry.
+
+### 2.3 Native Hidden Thinking Modes
+When invoking models with native reasoning capabilities (e.g., Gemini Flash Thinking, Claude Extended Thinking), server-side reasoning remains out-of-band while the returned payload delivers the `<simulation_code>` block cleanly.
 
 ---
 
-## 3. Sandboxed Runtime API & Environment Contract
+## 3. Dynamic Viewport Measurement & Injection
 
-The table below lists how capabilities and constraints are declared to the LLM in the system prompt:
+Hardcoding static dimensions (e.g., `380px x 450px`) can lead to cramped visualizations or layout clipping on high-resolution displays or when the user widens their Side Panel. SimIt dynamically queries the live container bounds (`container.clientWidth` and `container.clientHeight`, with sensible min-clamps `minWidth: 320, minHeight: 380`) from the active browser window at synthesis time:
 
-| Component | Global Reference | Available Capabilities | Limitations & Rules |
+```json
+{
+  "viewport": {
+    "width": "${container.clientWidth}",
+    "height": "${container.clientHeight}"
+  }
+}
+```
+
+The system prompt dynamically injects these exact measured pixel bounds:
+`The host container #sim-root currently has measured viewport dimensions: width: ${viewport.width}px, height: ${viewport.height}px (dynamically derived from the active browser Side Panel space). Configure your Canvas, SVG, Cytoscape, or functionPlot viewBox to fit these dimensions.`
+
+---
+
+## 4. Sandboxed Runtime API & Declarative Library Stack
+
+To achieve short, deterministic code with high first-run reliability, the sandbox pre-loads declarative libraries, eliminating manual HTML wiring:
+
+| Library | Global Reference | Version | Purpose & Capabilities |
 | :--- | :--- | :--- | :--- |
-| **D3.js** | `window.d3` (v7) | Coordinate scales (`scaleLinear`, `scaleOrdinal`), SVG line/area generators, force layouts, color interpolation (`interpolateViridis`). | Use D3 for spatial and data transforms; avoid external GeoJSON fetches. |
-| **Anime.js** | `window.anime` (v3) | Keyframe timelines, tweening, spring physics, play/pause, seek, scrubber interpolation. | Manage animation instances through `simEngine` timeline hooks to enable scrubbability. |
-| **KaTeX** | `window.katex` (v0.16) | Fast formula rendering via `katex.render(latexString, targetElement)`. | Use for annotating formulas, variables, and axes with LaTeX typography. |
-| **Canvas / SVG** | `#sim-root` container | Standard HTML5 Canvas 2D context or dynamic SVG elements. | Responsive width (300px–500px matching Side Panel); auto-resizes to container. |
-| **Network & IO** | *None (Strict CSP)* | Local memory and math functions only (`Math.*`). | **Zero network**: No `fetch`, `XMLHttpRequest`, `WebSocket`, `localStorage`, or external scripts. |
+| **Tweakpane** | `window.Tweakpane` / `Pane` | `v4.x` | Declarative UI parameters (sliders, toggles, steppers, color pickers). Eliminates manual HTML DOM controls; updates reactively via zero-latency `updateParams()`. |
+| **functionPlot** | `window.functionPlot` | `v1.x` | Instant Cartesian coordinates, 2D function curve plotting, derivative vectors, and secant lines without custom SVG scaling. |
+| **cytoscape** | `window.cytoscape` | `v3.x` | Declarative DAGs, state machines, tree traversals, and concept topologies. |
+| **anime.js** | `window.anime` | `v3.x` | Timeline tweening, state scrubbers, spring physics, and continuous animation loops. |
+| **KaTeX** | `window.katex` | `v0.16.x` | High-fidelity mathematical formula typography via `katex.render(latex, el)`. |
+| **D3.js** | `window.d3` | `v7.x pinned` | Pinned explicitly to v7 to prevent deprecated v3/v4 syntax hallucinations. Spatial scales and projections. |
+| **HTML5 Canvas 2D** | `#sim-root` | Native | Fallback for high-performance particle systems, continuous phase transitions, and custom 2D vector graphics. |
 
 ---
 
-## 4. The `simEngine` Lifecycle Contract
+## 5. The `simEngine` Module Lifecycle Contract
 
-The LLM is instructed to output an ES module matching the following interface:
+The LLM outputs an ES module matching the following declarative contract:
 
 ```typescript
-interface SimModule {
+export interface SimParameterDefinition {
+  id: string;
+  label: string;
+  type: 'slider' | 'toggle' | 'stepper' | 'select';
+  min?: number;
+  max?: number;
+  step?: number;
+  default: number | boolean | string;
+  unit?: string;
+  options?: string[];
+}
+
+export interface SimModule {
   title: string;
   description: string;
-  
-  // Declares dynamic controls to be generated in the Side Panel UI
-  parameters: Array<{
-    id: string;
-    label: string;
-    type: 'slider' | 'toggle' | 'stepper' | 'select';
-    min?: number;
-    max?: number;
-    step?: number;
-    default: number | boolean | string;
-    unit?: string;
-    options?: string[]; // For select type
-  }>;
+  parameters: SimParameterDefinition[];
 
-  // Lifecycle Methods
+  /**
+   * Initializes visual elements inside container using default parameters.
+   * Container dimensions are dynamically injected from the active browser Side Panel.
+   */
   init(container: HTMLElement, params: Record<string, any>): void;
+
+  /**
+   * Reactively updates simulation state when user adjusts sliders or controls.
+   */
   update(params: Record<string, any>): void;
-  step?(stepIndex: number): void; // For discrete algorithms
-  destroy?(): void; // Cleanup timers, requestAnimationFrame, or listeners
+
+  /**
+   * Optional step hook for discrete algorithms or state machines.
+   */
+  step?(stepIndex: number): void;
+
+  /**
+   * Cleans up timers, requestAnimationFrame, or event listeners.
+   */
+  destroy?(): void;
 }
 ```
 
 ---
 
-## 5. Concrete System Prompt Specification
-
-Below is the concrete system prompt injected into the model (Gemini Nano or BYOK provider):
+## 6. Concrete System Prompt Specification
 
 ```markdown
-You are SimIt, an expert graphics and simulation engineer. Your task is to transform technical concepts, scientific formulas, and algorithms into self-contained, interactive visual simulations.
+You are SimIt, an expert simulation and visual explanation engineer. Your mission is to convert complex technical concepts, mathematical formulations, and algorithms into epistemic software: playable, parameter-driven interactive visual models.
 
-### EXECUTION ENVIRONMENT & AVAILABLE TOOLS
-Your code runs inside an isolated browser iframe sandbox with NO network access.
-The following localized libraries are pre-loaded in the global scope:
-1. `d3` (v7): Available globally as `d3`. Use for geometric projections, axes, scales, and layouts.
-2. `anime` (v3): Available globally as `anime`. Use for timelines, tweens, and smooth animation loops.
-3. `katex`: Available globally as `katex`. Use `katex.render(formula, domElement)` for rendering LaTeX equations.
-4. Container: You are given an empty DOM element `<div id="sim-root"></div>` with dynamic width (300px to 450px).
+### VIEWPORT SPECIFICATION
+The host container `#sim-root` currently has measured viewport dimensions from the active browser Side Panel: width: ${VIEWPORT_WIDTH}px, height: ${VIEWPORT_HEIGHT}px.
+Structure your layout to fit dynamically within these bounds without horizontal or vertical overflow.
+
+### PRE-LOADED DECLARATIVE LIBRARIES
+The following libraries are available in the global scope:
+1. `Tweakpane` (v4.x): Use for parameter controls. You define parameters in the exported object; SimIt automatically wires Tweakpane.
+2. `functionPlot` (v1.x): Global `functionPlot`. Use for 2D Cartesian curves: functionPlot({ target: '#sim-root', width: ${VIEWPORT_WIDTH}, height: ${VIEWPORT_HEIGHT}, data: [...] }).
+3. `cytoscape` (v3.x): Global `cytoscape`. Use for DAGs, trees, and state machine graphs.
+4. `anime` (v3.x): Global `anime`. Use for timelines, tweens, and smooth state transitions.
+5. `katex` (v0.16.x): Global `katex`. Use `katex.render(formula, domElement)` for rendering LaTeX equations.
+6. `d3` (v7.x): Global `d3`. Use for geometric projections, axes, and scales.
+7. HTML5 Canvas 2D: Native canvas container inside `#sim-root`.
 
 ### RESTRICTIONS & CSP RULES
-- Do NOT use `fetch`, `XMLHttpRequest`, `WebSocket`, or load external CDN scripts.
-- Do NOT use `eval()` or access `window.parent` / `document.cookie`.
-- Ensure all computations are safe: guard against division by zero, `NaN`, and infinite loops.
-- All styles must be applied directly via JavaScript or inline CSS within the container.
+- NO network access: do NOT use `fetch`, `XMLHttpRequest`, `WebSocket`, or external CDN scripts.
+- NO `eval()` or access to `window.parent` / `document.cookie`.
+- Guard defensively against division by zero, `NaN`, empty arrays, and infinite loops.
+- Do NOT output arbitrary moving balls or generic charts if the concept is not dynamic; use Cytoscape DAGs or interactive concept maps instead.
 
-### OUTPUT FORMAT
-Output ONLY valid JavaScript (ES module format) with NO markdown backticks or text preamble.
-Your module must export default an object with the following structure:
+### OUTPUT FORMAT SPECIFICATION
+You must format your response into two distinct sections:
+1. First, inside `<simulation_thinking>...</simulation_thinking>`, plan the mathematical model, coordinate ranges, visual metaphors, and parameter bounds.
+2. Second, inside `<simulation_code>...</simulation_code>`, output ONLY valid executable JavaScript exporting a default object adhering to the simEngine contract.
 
+Example:
+<simulation_thinking>
+1. Model: Softmax temperature scaling P(i) = exp(z_i / tau) / sum(exp(z_j / tau)).
+2. Visual: 2D bar chart for probabilities + KaTeX formula annotation.
+3. Parameters: tau slider from 0.1 to 5.0 with default 1.0.
+</simulation_thinking>
+<simulation_code>
 export default {
-  title: "Short Descriptive Title",
-  description: "1-sentence summary of the interactive concept.",
+  title: "Softmax Temperature Scaling",
+  description: "Observe probability flattening as temperature tau increases.",
   parameters: [
-    { id: "tau", label: "Temperature (τ)", type: "slider", min: 0.1, max: 5.0, step: 0.1, default: 1.0 },
-    { id: "showVectors", label: "Show Projections", type: "toggle", default: true }
+    { id: "tau", label: "Temperature (τ)", type: "slider", min: 0.1, max: 5.0, step: 0.1, default: 1.0 }
   ],
-  init(container, params) {
-    // 1. Create Canvas or SVG inside container
-    // 2. Initial render using params
-  },
-  update(params) {
-    // Reactively update visual elements based on changed slider/toggle values
-  },
-  destroy() {
-    // Cancel requestAnimationFrame or anime timelines
-  }
+  init(container, params) { ... },
+  update(params) { ... },
+  destroy() { ... }
 };
+</simulation_code>
 ```
 
 ---
 
-## 6. Pre-Flight Verification & Automatic 1-Shot Self-Correction
+## 7. Context Rolling for Infinite Evolution
 
-Before presenting code to the user, the **Offscreen Pre-Flight Harness** validates execution silently:
+As a user interacts with the simulation ("tweak this", "add that", "explain this edge case"), token counts grow. To prevent context window bloat and escalating API bills without complex backend pipelines, the orchestrator employs **Rolling Context with Code Compaction**:
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant SW as Service Worker
-    participant Offscreen as Offscreen Document
-    participant Model as Active LLM (Nano / BYOK)
-
-    SW->>Offscreen: postMessage({ code: generatedCode, timeoutMs: 100 })
-    activate Offscreen
-    
-    Note over Offscreen: 1. Parse code into Module<br/>2. Execute init(mockContainer, defaults)<br/>3. Execute update(boundaryParams)
-    
-    alt Unhandled Exception Caught
-        Offscreen-->>SW: postMessage({ status: 'error', error: err.message, stack: err.stack })
-        deactivate Offscreen
-        
-        Note over SW: Formulate 1-Shot Silent Repair
-        SW->>Model: [SYSTEM REPAIR PROMPT]<br/>Failed Code + Stack Trace + Fix Directive
-        Model-->>SW: Repaired Code
-        SW->>Offscreen: Re-run validation smoke test
-    else Code Runs Cleanly
-        Offscreen-->>SW: postMessage({ status: 'ok', code: verifiedCode })
-    end
+```
+┌────────────────────────────────────────────────────────┐
+│ System Instruction + Sandboxed API Contracts           │
+├────────────────────────────────────────────────────────┤
+│ Original Paper Snippet (Static Ground Truth Anchor)    │
+├────────────────────────────────────────────────────────┤
+│ Current Working Module Code (<simulation_code> v3)     │
+├────────────────────────────────────────────────────────┤
+│ User: "Make nodes bounce when traversed"               │
+└────────────────────────────────────────────────────────┘
 ```
 
-### Self-Correction Repair Prompt Format
-When an exception occurs during the 100ms test, the following repair prompt is dispatched:
-
-```markdown
-Your previously generated simulation code failed during sandboxed pre-flight verification.
-
-### FAILED CODE:
-```javascript
-<PREVIOUS_GENERATED_CODE>
-```
-
-### RUNTIME ERROR & STACK TRACE:
-<ERROR_MESSAGE>
-<STACK_TRACE>
-
-### REPAIR DIRECTIVES:
-1. Fix the root cause identified in the stack trace.
-2. Check for missing variable definitions, unhandled `null`/`undefined` DOM nodes, or library API mismatches (ensure valid `d3`, `anime`, or `katex` method signatures).
-3. Ensure defensive mathematical checks (guard against division by zero or empty arrays).
-4. Return ONLY the repaired executable ES module code with no markdown wrapping.
-```
+1. **System Prompt**: Defines core sandbox rules and library versions.
+2. **Original Paper Anchor**: Retains the original harvested excerpt intact so the agent never drifts from ground truth.
+3. **Active Working Artifact**: Passes only the single latest working code inside `<simulation_code>` as the active snapshot. Discards prior intermediate code blocks.
+4. **Sliding Chat Window**: Keeps only the last 2 user/assistant conversational turns.
 
 ---
 
-## 7. Interactive Runtime Error Interception & Auto-Appearing Repair Icon
+## 8. Dual-Track Evolution & Session Version Stack
 
-Even if code passes the pre-flight smoke test, edge cases can occur during live user interaction—for instance, dragging a parameter slider to a boundary value that triggers a math divide-by-zero, or scrubbing past an array bound.
+### 8.1 Dual-Track Evolution
+- **Pre-Computed Evolution Chips**: Auto-generated contextual action buttons (e.g., `[+ Add Temperature Scaling]`, `[Show Phase Boundary]`, `[Step-by-Step Traversal]`).
+- **Refinement Chat Bar**: Freeform natural language input for direct user modifications.
 
-### 7.1 Runtime Error Interception in `sandbox.html`
-Inside the running sandboxed iframe, global error hooks catch unhandled console errors without crashing the Side Panel:
+### 8.2 Client-Side Session Version Stack (IndexedDB)
+Every validated simulation module is snapshotted into local `IndexedDB` (`simit_sessions`):
+- `v1`: Initial synthesis from text selection.
+- `v2`: Evolution chip applied ("Add Temperature Scaling").
+- `v3`: User chat refinement ("Highlight active node in orange").
+The Side Panel UI renders a version scrubber (`v1`, `v2`, `v3`) enabling 1-click instant rollback and parameter state restoration with zero network calls.
 
-```javascript
-// sandbox.html runtime error hooks
-window.addEventListener("error", (event) => {
-  window.parent.postMessage({
-    type: "SIM_RUNTIME_ERROR",
-    message: event.message,
-    filename: event.filename,
-    lineno: event.lineno,
-    colno: event.colno,
-    stack: event.error ? event.error.stack : null,
-    currentParams: window.__currentSimParams
-  }, "*");
-});
-
-window.addEventListener("unhandledrejection", (event) => {
-  window.parent.postMessage({
-    type: "SIM_RUNTIME_ERROR",
-    message: event.reason ? event.reason.message : "Unhandled Promise Rejection",
-    stack: event.reason ? event.reason.stack : null,
-    currentParams: window.__currentSimParams
-  }, "*");
-});
-```
-
-### 7.2 The Auto-Appearing Repair Icon UX Flow
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User as User / Researcher
-    participant Panel as Side Panel UI Frame
-    participant Sandbox as Sandbox Iframe (sandbox.html)
-    participant SW as Service Worker
-    participant Model as Active LLM (Nano / BYOK)
-    participant Offscreen as Offscreen Harness
-
-    User->>Sandbox: Drags parameter slider (e.g., τ = 0.0)
-    Sandbox->>Sandbox: update(params) throws DivisionByZero / TypeError
-    Sandbox-->>Panel: postMessage({ type: 'SIM_RUNTIME_ERROR', stack, currentParams })
-    
-    Note over Panel: Auto-displays floating Repair Icon (🛠️ "Repair with AI")
-    Panel-->>User: Non-intrusive repair badge appears in top bar
-    
-    User->>Panel: Clicks Repair Icon (🛠️)
-    Panel->>SW: chrome.runtime.sendMessage({ type: 'REPAIR_INTERACTIVE_SIM', error, code, currentParams })
-    
-    SW->>Model: Dispatch Interactive Repair Prompt with active slider state
-    Model-->>SW: Repaired simEngine code
-    
-    SW->>Offscreen: Pre-flight smoke test on repaired code
-    Offscreen-->>SW: Code verified
-    
-    SW->>Panel: postMessage({ type: 'RENDER_SIM', code: repairedCode, restoreParams: currentParams })
-    Panel->>Sandbox: Hot-reloads simulation with user's parameters preserved
-    Panel-->>User: Simulation running smoothly (Repair Icon disappears)
-```
-
-### 7.3 Interactive Repair Prompt Structure
-When the user clicks the auto-appearing Repair Icon, the prompt includes both the failure stack trace and the exact parameter configuration the user had selected when the error happened:
-
-```markdown
-The user was interacting with the simulation when an unhandled runtime error occurred in the browser console.
-
-### CURRENT PARAMETER STATE:
-<JSON_STRINGIFIED_CURRENT_PARAMS>
-
-### FAILED CODE:
-```javascript
-<CURRENT_ACTIVE_CODE>
-```
-
-### CONSOLE ERROR & STACK TRACE:
-<ERROR_MESSAGE>
-<STACK_TRACE>
-
-### REPAIR DIRECTIVE:
-1. Fix the error that occurred under the specified parameter state.
-2. Defensively handle extreme parameter ranges and edge cases.
-3. Return ONLY the repaired executable ES module code.
-```

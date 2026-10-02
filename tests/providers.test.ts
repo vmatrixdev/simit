@@ -9,7 +9,7 @@ import { AnthropicProvider } from '../src/providers/anthropic';
 import { GoogleGeminiProvider } from '../src/providers/gemini';
 import { OpenAICompatibleProvider } from '../src/providers/openai-compatible';
 import { resolveActiveProvider, DEFAULT_BYOK_SETTINGS } from '../src/providers/resolver';
-import { buildUserPromptFromContext, buildPreFlightRepairPrompt, buildInteractiveRepairPrompt } from '../src/providers/prompt-builder';
+import { buildUserPromptFromContext, buildPreFlightRepairPrompt, buildInteractiveRepairPrompt, buildSimulationSystemPrompt } from '../src/providers/prompt-builder';
 import { HarvestedContext } from '../src/types/harvester';
 
 describe('Model Providers Specification Verification (docs/specs/model_providers.md)', () => {
@@ -218,5 +218,35 @@ export default {
     const interactive = buildInteractiveRepairPrompt('code;', 'Division by zero', { tau: 0.0 });
     expect(interactive.userPrompt).toContain('"tau": 0');
     expect(interactive.userPrompt).toContain('Division by zero');
+  });
+
+  it('buildSimulationSystemPrompt and buildUserPromptFromContext dynamically inject measured viewport bounds', () => {
+    const customViewport = { width: 520, height: 640 };
+    const systemPrompt = buildSimulationSystemPrompt(customViewport);
+    expect(systemPrompt).toContain('width = 520px, height = 640px');
+    expect(systemPrompt).toContain('canvas.width = container.clientWidth || 520');
+    expect(systemPrompt).toContain('canvas.height = container.clientHeight || 640');
+
+    const mockContext: HarvestedContext = {
+      harvestId: 'h-dyn',
+      timestamp: '2026-10-02T12:00:00Z',
+      selection: {
+        selectedText: 'Euler integration',
+        characterCount: 17,
+        sourceUrl: 'https://example.org',
+        documentTitle: 'Numerical Methods'
+      },
+      mathSnippets: [],
+      domContext: {
+        nearestHeading: null,
+        headingLevel: null,
+        caption: null,
+        paragraphSnippet: ''
+      }
+    };
+
+    const userPrompt = buildUserPromptFromContext(mockContext, customViewport);
+    expect(userPrompt).toContain('DYNAMIC VIEWPORT BOUNDS');
+    expect(userPrompt).toContain('width = 520px, height = 640px');
   });
 });
