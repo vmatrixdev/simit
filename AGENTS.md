@@ -64,6 +64,8 @@ This repository includes specialized agent skills under `.agents/skills/`:
 2. **`artifact-graduation`**:
    - Use when evaluating scratch scripts, diagnostic routines, or temporary prototypes built during development.
    - Outlines criteria and procedures for graduating valuable artifacts into permanent codebase assets or documentation specs.
+3. **`e2e-simulation-testing`**:
+   - Use to execute autonomous end-to-end browser tests, observe multi-context logs, visually verify simulation screenshots, and diagnose runtime/CSP issues without human relays.
 
 ---
 

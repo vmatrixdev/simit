@@ -342,8 +342,37 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
   }
 }
 
-// 3. Listen for Messages from Side Panel
+// 3. Listen for Messages from Side Panel or Test Harness
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message && message.type === 'START_SIMULATION_REQUEST') {
+    (async () => {
+      const tabId = message.tabId || _sender.tab?.id;
+      let context: HarvestedContext | undefined = message.harvestedContext;
+      if (!context && tabId) {
+        try {
+          const response: HarvestContextResponse = await chrome.tabs.sendMessage(tabId, {
+            type: 'HARVEST_CONTEXT_REQUEST',
+            tabId
+          } as HarvestContextRequest);
+          if (response && response.payload) {
+            context = response.payload;
+          }
+        } catch (e) {
+          console.warn('[SimIt SW] Content harvest in START_SIMULATION_REQUEST failed:', e);
+        }
+      }
+      if (context) {
+        await orchestrateSimulationGeneration(context);
+        sendResponse({ status: 'ok' });
+      } else {
+        sendResponse({ status: 'error', errorMessage: 'Could not obtain context to simulate.' });
+      }
+    })().catch((err) => {
+      sendResponse({ status: 'error', errorMessage: err.message || String(err) });
+    });
+    return true;
+  }
+
   if (message && message.type === 'REPAIR_INTERACTIVE_SIM') {
     handleInteractiveRepair(message)
       .then((res) => sendResponse(res))

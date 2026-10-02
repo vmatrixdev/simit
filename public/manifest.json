@@ -45,5 +45,11 @@
   },
   "content_security_policy": {
     "sandbox": "sandbox allow-scripts; script-src 'self' 'unsafe-eval' 'unsafe-inline'; default-src 'none'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:;"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["assets/*", "src/sandbox/vendor/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }

@@ -10,6 +10,7 @@
     "build": "vite build && mkdir -p dist/src/sandbox/vendor && cp -r src/sandbox/vendor/* dist/src/sandbox/vendor/",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "npm run build && node --experimental-strip-types tests/e2e/simit.e2e.ts",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [],
@@ -27,6 +28,8 @@
     "d3": "^7.9.0",
     "jsdom": "^29.1.1",
     "katex": "^0.19.0",
+    "playwright": "^1.63.0",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.2",
     "vitest": "^5.0.3"

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Quicksort Partition and Recursion Analysis</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 20px;
+      line-height: 1.6;
+      color: #1e293b;
+      background: #f8fafc;
+    }
+    h1 { color: #0f172a; margin-bottom: 8px; }
+    .subtitle { color: #64748b; font-size: 14px; margin-bottom: 24px; }
+    .card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    pre { background: #0f172a; color: #f8fafc; padding: 16px; border-radius: 6px; overflow-x: auto; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h1>Quicksort Partition and Recursion Analysis</h1>
+  <div class="subtitle">Algorithms & Divide and Conquer</div>
+
+  <div class="card">
+    <h2>1. Algorithm Overview</h2>
+    <p id="target-selection">
+      Quicksort is an efficient divide-and-conquer sorting algorithm. It selects an element as a pivot and partitions the given array around the picked pivot.
+      For the initial input array [38, 27, 43, 3, 9, 82, 10], Lomuto partition chooses 10 as the pivot, moving elements smaller than 10 to the left [3, 9] and greater elements to the right [27, 43, 82, 38].
+    </p>
+    <pre><code>function quicksort(arr, low, high):
+  if low < high:
+    pivot_idx = partition(arr, low, high)
+    quicksort(arr, low, pivot_idx - 1)
+    quicksort(arr, pivot_idx + 1, high)</code></pre>
+    <p>
+      At each step, comparison indices i and j advance, swapping out-of-order elements until the pivot reaches its final sorted position.
+    </p>
+  </div>
+</body>
+</html>

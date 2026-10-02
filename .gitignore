@@ -23,8 +23,9 @@ build/
 *.swp
 *.swo
 
-# Temporary files and scratch space
+# Temporary files, test artifacts, and scratch space
 /scratch/
+artifacts/
 *.log
 .chrome*
 .browser-profile*

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TCP State Machine & Handshake Transitions</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 20px;
+      line-height: 1.6;
+      color: #1e293b;
+      background: #f8fafc;
+    }
+    h1 { color: #0f172a; margin-bottom: 8px; }
+    .subtitle { color: #64748b; font-size: 14px; margin-bottom: 24px; }
+    .card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .state-list { list-style: none; padding: 0; }
+    .state-item { padding: 8px 12px; margin: 4px 0; background: #e0f2fe; border-left: 4px solid #0284c7; border-radius: 4px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>TCP State Machine & Handshake Transitions</h1>
+  <div class="subtitle">Computer Networking & Finite State Automata</div>
+
+  <div class="card">
+    <h2>1. Protocol State Transitions</h2>
+    <p id="target-selection">
+      A TCP connection lifecycle progresses through explicit discrete finite state machine states:
+      CLOSED -> LISTEN -> SYN_SENT -> SYN_RECEIVED -> ESTABLISHED -> FIN_WAIT_1 -> FIN_WAIT_2 -> TIME_WAIT -> CLOSED.
+      During the three-way handshake:
+    </p>
+    <ul class="state-list">
+      <li class="state-item">CLOSED: Initial dormant state</li>
+      <li class="state-item">SYN_SENT: Client sends SYN packet, awaiting ACK</li>
+      <li class="state-item">ESTABLISHED: Connection open, bidirectional byte streaming active</li>
+      <li class="state-item">TIME_WAIT: 2MSL timer running before full socket release</li>
+    </ul>
+    <p>
+      An unexpected RST packet triggers immediate abortive transition to CLOSED regardless of current state.
+    </p>
+  </div>
+</body>
+</html>
