@@ -5,7 +5,7 @@
 
 import { HostToSandboxMessage, SandboxToHostMessage } from '../types/ipc';
 import { ParameterState, SimModule } from '../types/simulation';
-import { sanitizeCodeFences, extractDefaultParameters } from '../runtime/preflight';
+import { sanitizeCodeFences, extractDefaultParameters, normalizeSimModule } from '../runtime/preflight';
 
 let activeModule: SimModule | null = null;
 let currentParams: ParameterState = {};
@@ -66,6 +66,11 @@ window.addEventListener('message', (event) => {
         let executableCode = code;
         if (executableCode.includes('export default')) {
           executableCode = executableCode.replace(/export\s+default\s+/, 'return ');
+        } else if (!executableCode.includes('return ')) {
+          const classMatch = executableCode.match(/class\s+([A-Za-z0-9_$]+)/);
+          if (classMatch && classMatch[1]) {
+            executableCode += `\n; return ${classMatch[1]};`;
+          }
         }
 
         const evaluator = new Function(
@@ -78,7 +83,43 @@ window.addEventListener('message', (event) => {
            ${executableCode}`
         );
 
-        activeModule = evaluator(window.d3, window.anime, window.katex, window, document);
+        const evalResult = evaluator(window.d3, window.anime, window.katex, window, document);
+
+        if (typeof evalResult === 'function') {
+          const Cls = evalResult as any;
+          activeModule = {
+            title: Cls.name || 'Simulation',
+            description: 'Dynamic visual simulation.',
+            parameters: [],
+            init(container: HTMLElement, params: any) {
+              const canvas = document.createElement('canvas');
+              canvas.id = 'sim-canvas';
+              canvas.width = container.clientWidth || 360;
+              canvas.height = 260;
+              container.appendChild(canvas);
+              try {
+                (this as any).__instance = new Cls(canvas.id, canvas.width, canvas.height);
+              } catch {
+                (this as any).__instance = new Cls(container, params);
+              }
+            },
+            update(params: any) {
+              if ((this as any).__instance?.update) {
+                (this as any).__instance.update(0.016, params);
+              }
+              if ((this as any).__instance?.draw) {
+                (this as any).__instance.draw();
+              }
+            },
+            destroy() {
+              if ((this as any).__instance?.destroy) {
+                (this as any).__instance.destroy();
+              }
+            }
+          };
+        } else {
+          activeModule = normalizeSimModule(evalResult);
+        }
 
         if (!activeModule || typeof activeModule.init !== 'function') {
           throw new Error('Simulation code did not produce a valid module with init() method.');
@@ -143,3 +184,6 @@ window.addEventListener('message', (event) => {
     }
   }
 });
+
+// Signal to host (Side Panel or Offscreen Harness) that sandbox is ready to receive code
+window.parent?.postMessage({ type: 'SANDBOX_READY' }, '*');

@@ -15,7 +15,7 @@ export class GoogleGeminiProvider implements IModelProvider {
 
   constructor(
     apiKey: string = '',
-    modelName: string = 'gemini-2.5-flash',
+    modelName: string = 'gemini-2.0-flash',
     temperature: number = 0.2
   ) {
     this.apiKey = apiKey;

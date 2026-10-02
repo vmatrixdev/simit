@@ -116,3 +116,35 @@ export interface InteractiveRepairResponseMessage {
   repairedCode?: string;
   errorMessage?: string;
 }
+
+// ==========================================
+// 5. Service Worker <-> Offscreen Prompt API
+// ==========================================
+
+export interface PromptApiCheckRequest {
+  type: 'PROMPT_API_CHECK_REQUEST';
+}
+
+export interface PromptApiCheckResponse {
+  type: 'PROMPT_API_CHECK_RESPONSE';
+  available: boolean;
+  status?: string;
+}
+
+export interface PromptApiGenerateRequest {
+  type: 'PROMPT_API_GENERATE_REQUEST';
+  payload: {
+    systemPrompt: string;
+    userPrompt: string;
+    temperature?: number;
+  };
+}
+
+export interface PromptApiGenerateResponse {
+  type: 'PROMPT_API_GENERATE_RESPONSE';
+  status: 'ok' | 'error';
+  rawCode?: string;
+  durationMs?: number;
+  errorMessage?: string;
+}
+

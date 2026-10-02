@@ -26,3 +26,6 @@ build/
 # Temporary files and scratch space
 /scratch/
 *.log
+.chrome*
+.browser-profile*
+

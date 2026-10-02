@@ -74,11 +74,11 @@ function setViewState(view: 'empty' | 'loading' | 'simulation' | 'error') {
   stateError.style.display = view === 'error' ? 'flex' : 'none';
 }
 
-function setStatusPill(status: 'Ready' | 'Synthesizing' | 'Active' | 'Error' | 'Repairing') {
+function setStatusPill(status: 'Ready' | 'Synthesizing' | 'Verifying' | 'Active' | 'Error' | 'Repairing') {
   statusPill.textContent = status;
   statusPill.className = 'status-pill';
   if (status === 'Ready') statusPill.classList.add('status-ready');
-  if (status === 'Synthesizing' || status === 'Repairing') statusPill.classList.add('status-loading');
+  if (status === 'Synthesizing' || status === 'Repairing' || status === 'Verifying') statusPill.classList.add('status-loading');
   if (status === 'Active') statusPill.classList.add('status-active');
   if (status === 'Error') statusPill.classList.add('status-error');
 }
@@ -260,30 +260,98 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
 
     switch (message.type) {
       case 'SIMULATION_LOADING':
-        setViewState('loading');
-        setStatusPill('Synthesizing');
+        // Only switch to loading view if simulation is not already actively displayed
+        if (stateSimulation.style.display !== 'flex') {
+          setViewState('loading');
+          setStatusPill('Synthesizing');
+        }
         loadingTitle.textContent = message.title || 'Synthesizing Simulation...';
         loadingDesc.textContent = message.description || 'Ingesting technical context.';
+
+        const liveStreamBox = document.getElementById('live-stream-box');
+        const liveStreamCode = document.getElementById('live-stream-code');
+        if (message.codePreview !== undefined) {
+          activeCode = message.codePreview;
+          if (liveStreamBox) {
+            liveStreamBox.style.display = message.codePreview.length > 0 ? 'block' : 'none';
+          }
+          if (liveStreamCode) {
+            liveStreamCode.textContent = message.codePreview;
+            liveStreamCode.scrollTop = liveStreamCode.scrollHeight;
+          }
+        }
         break;
 
       case 'SIMULATION_READY':
         if (message.atifTrajectory) {
           currentAtifTrajectory = message.atifTrajectory;
         }
+        activeCode = message.code;
+        const simCodePreview = document.getElementById('sim-code-preview');
+        if (simCodePreview) {
+          simCodePreview.textContent = activeCode;
+        }
         initSimulationInIframe(message.code, message.initialParams);
+
+        const simVerifyingBanner = document.getElementById('sim-verifying-banner');
+        if (message.isOptimistic) {
+          setStatusPill('Verifying');
+          if (simVerifyingBanner) {
+            simVerifyingBanner.style.display = 'block';
+            simVerifyingBanner.textContent = '⚡ Running pre-flight safety verification in background...';
+            simVerifyingBanner.style.color = '#38bdf8';
+          }
+        } else {
+          setStatusPill('Active');
+          if (simVerifyingBanner) {
+            simVerifyingBanner.style.display = 'none';
+          }
+        }
         break;
 
       case 'SIMULATION_ERROR':
-        setViewState('error');
-        setStatusPill('Error');
-        const errTitle = document.getElementById('error-title');
-        const errMsg = document.getElementById('error-message');
-        if (errTitle) errTitle.textContent = 'Generation Failed';
-        if (errMsg) errMsg.textContent = message.errorMessage || 'Unknown error occurred.';
+        if (message.atifTrajectory) {
+          currentAtifTrajectory = message.atifTrajectory;
+        }
+        if (message.rawCode) {
+          activeCode = message.rawCode;
+        }
+
+        const verifyingBanner = document.getElementById('sim-verifying-banner');
+        if (stateSimulation.style.display === 'flex' && activeCode) {
+          // Keep active simulation on screen; notify user via status banner
+          setStatusPill('Error');
+          if (verifyingBanner) {
+            verifyingBanner.style.display = 'block';
+            verifyingBanner.textContent = `⚠️ Pre-flight note: ${message.errorMessage || 'Pre-flight check failed'}`;
+            verifyingBanner.style.color = '#f59e0b';
+          }
+        } else {
+          setViewState('error');
+          setStatusPill('Error');
+          const errTitle = document.getElementById('error-title');
+          const errMsg = document.getElementById('error-message');
+          if (errTitle) errTitle.textContent = 'Generation Failed';
+          if (errMsg) errMsg.textContent = message.errorMessage || 'Unknown error occurred.';
+
+          const errorCodeContainer = document.getElementById('error-code-container');
+          const errorCodePreview = document.getElementById('error-code-preview');
+          if (activeCode) {
+            if (errorCodeContainer) errorCodeContainer.style.display = 'block';
+            if (errorCodePreview) errorCodePreview.textContent = activeCode;
+          } else {
+            if (errorCodeContainer) errorCodeContainer.style.display = 'none';
+          }
+        }
         break;
 
       case 'SHOW_BYOK_SETUP':
         openSettingsModal();
+        if (message.reason) {
+          settingsStatusMsg.style.display = 'block';
+          settingsStatusMsg.textContent = message.reason;
+          settingsStatusMsg.style.color = '#f59e0b';
+        }
         break;
     }
   });
@@ -327,6 +395,16 @@ btnExportAtif?.addEventListener('click', () => {
   downloadFile(`${currentAtifTrajectory.session_id || 'session'}.atif.json`, 'application/json', jsonStr);
 });
 
+// Error Card: Download ATIF Button
+document.getElementById('btn-error-download-atif')?.addEventListener('click', () => {
+  if (!currentAtifTrajectory) {
+    alert('No ATIF trajectory recorded for current session.');
+    return;
+  }
+  const jsonStr = JSON.stringify(currentAtifTrajectory, null, 2);
+  downloadFile(`${currentAtifTrajectory.session_id || 'session'}.atif.json`, 'application/json', jsonStr);
+});
+
 // Export 3: Copy ATIF
 btnCopyAtif?.addEventListener('click', () => {
   if (!currentAtifTrajectory) {
@@ -336,6 +414,66 @@ btnCopyAtif?.addEventListener('click', () => {
   navigator.clipboard.writeText(JSON.stringify(currentAtifTrajectory, null, 2))
     .then(() => alert('ATIF trajectory copied to clipboard!'))
     .catch((err) => console.error('Copy failed:', err));
+});
+
+// Copy Generated Code (from Export menu)
+document.getElementById('btn-copy-code')?.addEventListener('click', () => {
+  if (!activeCode) {
+    alert('No active simulation code to copy.');
+    return;
+  }
+  navigator.clipboard.writeText(activeCode)
+    .then(() => alert('Simulation code copied to clipboard!'))
+    .catch((err) => console.error('Copy failed:', err));
+});
+
+// Copy Code from Error Box
+document.getElementById('btn-copy-error-code')?.addEventListener('click', () => {
+  if (!activeCode) return;
+  navigator.clipboard.writeText(activeCode)
+    .then(() => alert('Generated code copied to clipboard!'))
+    .catch((err) => console.error('Copy failed:', err));
+});
+
+// Copy Code from Simulation View Details Accordion
+document.getElementById('btn-copy-sim-code')?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (!activeCode) return;
+  navigator.clipboard.writeText(activeCode)
+    .then(() => alert('Simulation code copied to clipboard!'))
+    .catch((err) => console.error('Copy failed:', err));
+});
+
+// Retry Generation Button
+document.getElementById('btn-retry')?.addEventListener('click', () => {
+  setViewState('empty');
+  setStatusPill('Ready');
+});
+
+// Run Simulation Now (from live stream loading box)
+document.getElementById('btn-skip-to-sim')?.addEventListener('click', () => {
+  if (!activeCode) {
+    alert('No simulation code generated yet.');
+    return;
+  }
+  initSimulationInIframe(activeCode);
+});
+
+// Copy Code from Live Stream Box
+document.getElementById('btn-copy-live-code')?.addEventListener('click', () => {
+  if (!activeCode) return;
+  navigator.clipboard.writeText(activeCode)
+    .then(() => alert('Generated code copied to clipboard!'))
+    .catch((err) => console.error('Copy failed:', err));
+});
+
+// Run Simulation Anyway (from error card)
+document.getElementById('btn-force-run-sim')?.addEventListener('click', () => {
+  if (!activeCode) {
+    alert('No simulation code available.');
+    return;
+  }
+  initSimulationInIframe(activeCode);
 });
 
 function downloadFile(filename: string, mimeType: string, content: string) {

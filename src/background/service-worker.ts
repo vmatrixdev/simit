@@ -9,9 +9,50 @@ import { resolveActiveProvider, loadBYOKSettings } from '../providers/resolver';
 import { buildUserPromptFromContext, SIMULATION_SYSTEM_PROMPT } from '../providers/prompt-builder';
 import { executePreFlightRepairLoop, executeInteractiveRepair } from '../runtime/repair';
 import { AtifTrajectoryLogger } from '../export/atif-logger';
-import { runPreFlightSmokeTest } from '../runtime/preflight';
+import { runPreFlightSmokeTest, sanitizeCodeFences } from '../runtime/preflight';
+
+import { PreFlightTestRequest, PreFlightTestResponse } from '../types/ipc';
+import { ensureOffscreenDocument } from '../runtime/offscreen-manager';
 
 const CONTEXT_MENU_ID = 'simit-selection';
+
+
+/**
+ * Dispatches test request to offscreen document or returns diagnostic error
+ */
+async function dispatchPreflightToOffscreen(request: PreFlightTestRequest): Promise<PreFlightTestResponse> {
+  if (typeof chrome !== 'undefined' && chrome.offscreen) {
+    try {
+      await ensureOffscreenDocument();
+      return await new Promise<PreFlightTestResponse>((resolve) => {
+        chrome.runtime.sendMessage(request, (response: PreFlightTestResponse) => {
+          if (chrome.runtime.lastError) {
+            console.warn('[SimIt SW] Preflight message error:', chrome.runtime.lastError.message);
+          }
+          if (response && response.type === 'PREFLIGHT_TEST_RESPONSE') {
+            resolve(response);
+          } else {
+            resolve({
+              type: 'PREFLIGHT_TEST_RESPONSE',
+              requestId: request.requestId,
+              status: 'error',
+              errorMessage: `Offscreen harness error: ${chrome.runtime.lastError?.message || 'No response from offscreen document.'}`
+            });
+          }
+        });
+      });
+    } catch (err: any) {
+      console.warn('[SimIt SW] Offscreen document error:', err);
+      return {
+        type: 'PREFLIGHT_TEST_RESPONSE',
+        requestId: request.requestId,
+        status: 'error',
+        errorMessage: `Offscreen document error: ${err.message || String(err)}`
+      };
+    }
+  }
+  return runPreFlightSmokeTest(request);
+}
 
 // 1. Setup Context Menu & Side Panel behavior on install
 chrome.runtime.onInstalled.addListener(() => {
@@ -95,10 +136,12 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
 
   // Check if provider is available
   const isAvailable = await provider.isAvailable();
-  if (!isAvailable && !provider.isLocal) {
+  if (!isAvailable) {
     broadcastToSidePanel({
       type: 'SHOW_BYOK_SETUP',
-      reason: 'No API key configured for active provider.'
+      reason: provider.isLocal
+        ? 'Gemini Nano (Prompt API) is not currently enabled in this browser. Please configure an API key for Claude, Gemini, or Ollama in Settings.'
+        : 'API key is missing or invalid for active provider.'
     });
     return;
   }
@@ -134,6 +177,7 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
       temperature: settings.providers[provider.type]?.temperature || 0.2
     });
     rawGeneratedCode = generationRes.rawCode;
+    const cleanInitialCode = sanitizeCodeFences(rawGeneratedCode);
 
     atifLogger.recordStep(
       'MODEL_INFERENCE',
@@ -141,27 +185,30 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
       { code_length: rawGeneratedCode.length },
       Date.now() - startTime
     );
+
+    // Optimistically display the generated simulation to the user while offscreen verification is pending
+    broadcastToSidePanel({
+      type: 'SIMULATION_READY',
+      code: cleanInitialCode,
+      isOptimistic: true
+    });
   } catch (err: any) {
     console.error('[SimIt SW] Model generation error:', err);
+    const failedTrajectory = atifLogger.complete(false);
     broadcastToSidePanel({
       type: 'SIMULATION_ERROR',
-      errorMessage: `Model generation failed: ${err.message || String(err)}`
+      errorMessage: `Model generation failed: ${err.message || String(err)}`,
+      atifTrajectory: failedTrajectory,
+      rawCode: rawGeneratedCode
     });
-    atifLogger.complete(false);
     return;
   }
-
-  broadcastToSidePanel({
-    type: 'SIMULATION_LOADING',
-    title: 'Verifying in Pre-Flight Harness...',
-    description: 'Running 100ms smoke test in isolated sandbox.'
-  });
 
   // Execute pre-flight verification with 1-shot self-repair loop
   const repairResult = await executePreFlightRepairLoop(
     rawGeneratedCode,
     provider,
-    runPreFlightSmokeTest
+    dispatchPreflightToOffscreen
   );
 
   if (repairResult.repairsNeeded > 0) {
@@ -192,10 +239,12 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
       atifTrajectory: trajectory
     });
   } else {
-    atifLogger.complete(false);
+    const failedTrajectory = atifLogger.complete(false, repairResult.code);
     broadcastToSidePanel({
       type: 'SIMULATION_ERROR',
-      errorMessage: `Pre-flight verification failed after repair: ${repairResult.finalError || 'Unknown runtime error'}`
+      errorMessage: `Pre-flight verification failed after repair: ${repairResult.finalError || 'Unknown runtime error'}`,
+      atifTrajectory: failedTrajectory,
+      rawCode: repairResult.code
     });
   }
 }
@@ -220,7 +269,7 @@ async function handleInteractiveRepair(message: any) {
     message.stack,
     message.currentParams || {},
     provider,
-    runPreFlightSmokeTest
+    dispatchPreflightToOffscreen
   );
 
   if (result.success) {

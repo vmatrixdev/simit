@@ -36,7 +36,7 @@ export async function executePreFlightRepairLoop(
     type: 'PREFLIGHT_TEST_REQUEST',
     requestId: `preflight-${Date.now()}-pass1`,
     rawCode: currentCode,
-    timeoutMs: 100
+    timeoutMs: 2500
   });
 
   if (firstTest.status === 'ok') {
@@ -52,6 +52,15 @@ export async function executePreFlightRepairLoop(
   initialError = firstTest.errorMessage;
   repairsNeeded = 1;
 
+  if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+    chrome.runtime.sendMessage({
+      type: 'SIMULATION_LOADING',
+      title: 'Auto-Repairing with AI (Pass 2/2)...',
+      description: `Smoke test error: ${firstTest.errorMessage}. Generating repair...`,
+      codePreview: currentCode
+    }).catch(() => {});
+  }
+
   try {
     const repairPromptPayload = buildPreFlightRepairPrompt(
       currentCode,
@@ -62,12 +71,21 @@ export async function executePreFlightRepairLoop(
     const modelResponse = await modelProvider.generateSimulation(repairPromptPayload);
     currentCode = sanitizeCodeFences(modelResponse.rawCode);
 
+    if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
+      chrome.runtime.sendMessage({
+        type: 'SIMULATION_LOADING',
+        title: 'Verifying Repaired Code...',
+        description: 'Testing repaired module in isolated sandbox...',
+        codePreview: currentCode
+      }).catch(() => {});
+    }
+
     // 3. Re-verify repaired code in harness
     const secondTest = await testRunner({
       type: 'PREFLIGHT_TEST_REQUEST',
       requestId: `preflight-${Date.now()}-pass2`,
       rawCode: currentCode,
-      timeoutMs: 100
+      timeoutMs: 2500
     });
 
     if (secondTest.status === 'ok') {

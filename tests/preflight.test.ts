@@ -8,7 +8,8 @@ import {
   runPreFlightSmokeTest,
   sanitizeCodeFences,
   extractDefaultParameters,
-  extractBoundaryParameters
+  extractBoundaryParameters,
+  normalizeSimModule
 } from '../src/runtime/preflight';
 import { PreFlightTestRequest } from '../src/types/ipc';
 
@@ -165,5 +166,117 @@ export default {
       enabled: true,
       mode: 'exponential'
     });
+  });
+
+  it('normalizes state/methods modules and dictionary parameters', async () => {
+    const stateMethodsCode = `
+      export default {
+        title: "Harmonic Oscillator Simulation",
+        description: "Interactive simulation of a one-dimensional harmonic oscillator.",
+        parameters: {
+          k: 10,
+          mass: 1,
+          damping_coefficient: 0
+        },
+        state: {
+          t: 0,
+          x: 0,
+          v: 0,
+          isRunning: true
+        },
+        methods: {
+          reset(params) {},
+          step() {
+            this.state.x += 0.1;
+          },
+          updateDisplay() {}
+        }
+      };
+    `;
+
+    const request: PreFlightTestRequest = {
+      type: 'PREFLIGHT_TEST_REQUEST',
+      requestId: 'req-state-methods',
+      rawCode: stateMethodsCode,
+      timeoutMs: 500
+    };
+
+    const response = await runPreFlightSmokeTest(request, mockContainer);
+    expect(response.status).toBe('ok');
+    if (response.status === 'ok') {
+      expect(response.parameters.length).toBe(3);
+      expect(response.parameters.find(p => p.id === 'k')?.default).toBe(10);
+      expect(response.parameters.find(p => p.id === 'mass')?.default).toBe(1);
+    }
+  });
+
+  it('normalizes harmonic oscillator with state/methods, seeds displacement, and animates movement', () => {
+    const userOscillatorCode = {
+      title: "Harmonic Oscillator Simulation",
+      description: "Interactive simulation of a one-dimensional harmonic oscillator.",
+      parameters: {
+        k: 10,
+        mass: 1,
+        damping_coefficient: 0,
+        initial_displacement: 1,
+        initial_velocity: 0,
+        time_step: 0.01,
+        max_time: 10
+      },
+      state: {
+        t: 0,
+        x: 0,
+        v: 0,
+        history: [],
+        isRunning: false,
+        isFinished: false
+      },
+      methods: {
+        reset: function(params: any) {
+          (this as any).parameters = { ...params };
+          (this as any).state = {
+            t: 0,
+            x: 0,
+            v: 0,
+            history: [],
+            isRunning: false,
+            isFinished: false
+          };
+          (this as any).updateDisplay();
+        },
+        step: function() {
+          if ((this as any).state.isRunning) {
+            const { k, damping_coefficient, time_step } = (this as any).parameters;
+            const x = (this as any).state.x;
+            const v = (this as any).state.v;
+            const ax = (-k * x) - (damping_coefficient * v);
+            const dv = ax * time_step;
+            (this as any).state.x += v * time_step;
+            (this as any).state.v += dv;
+            (this as any).state.t += time_step;
+          }
+        },
+        updateDisplay: function() {}
+      }
+    };
+
+    const sim = normalizeSimModule(userOscillatorCode);
+    const container = document.createElement('div');
+    sim.init(container, { initial_displacement: 1, k: 10 });
+
+    // 1. Must seed displacement so mass is not stuck at 0
+    expect(userOscillatorCode.state.isRunning).toBe(true);
+    expect(userOscillatorCode.state.x).toBe(1);
+
+    // 2. step() must induce physical movement
+    (sim as any).step();
+    expect(userOscillatorCode.state.t).toBe(0.01);
+    expect(userOscillatorCode.state.v).toBe(-0.1); // dv = (-10 * 1) * 0.01 = -0.1
+    expect(userOscillatorCode.state.isRunning).toBe(true);
+
+    // 3. update() with slider adjustment must dynamically update position
+    sim.update({ initial_displacement: 3 });
+    expect(userOscillatorCode.state.x).toBe(3);
+    expect(userOscillatorCode.state.isRunning).toBe(true);
   });
 });
