@@ -47,11 +47,14 @@ export interface BYOKStorageSettings {
       modelName: string;
       baseUrl?: string;
       temperature: number;
+      enableThinking?: boolean;
+      thinkingBudgetTokens?: number;
     };
     'google-gemini': {
       apiKey: string;
       modelName: string;
       temperature: number;
+      enableThinking?: boolean;
     };
     'openai-compatible': {
       apiKey?: string;
@@ -69,10 +72,13 @@ export interface GenerationPromptPayload {
   userPrompt: string;
   temperature?: number;
   maxTokens?: number;
+  enableThinking?: boolean;
+  thinkingBudgetTokens?: number;
 }
 
 export interface GenerationResponse {
   rawCode: string;
+  thinkingTrace?: string;
   provider: ProviderType;
   modelName: string;
   durationMs: number;
@@ -87,5 +93,6 @@ export interface IModelProvider {
   readonly type: ProviderType;
   readonly isLocal: boolean;
   isAvailable(): Promise<boolean>;
+  isThinkingSupported?(): boolean;
   generateSimulation(payload: GenerationPromptPayload): Promise<GenerationResponse>;
 }

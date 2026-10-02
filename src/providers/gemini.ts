@@ -1,10 +1,10 @@
 /**
- * Google Gemini Cloud Provider (gemini-2.5-flash / gemini-1.5-pro)
+ * Google Gemini Cloud Provider (gemini-2.5-flash / gemini-2.0-flash / gemini-1.5-pro)
  * Conforms to docs/specs/model_providers.md
  */
 
 import { GenerationPromptPayload, GenerationResponse, IModelProvider, ProviderType } from '../types/models';
-import { sanitizeCodeFences } from '../runtime/preflight';
+import { extractSimulationTags } from '../runtime/preflight';
 
 export class GoogleGeminiProvider implements IModelProvider {
   readonly type: ProviderType = 'google-gemini';
@@ -12,19 +12,26 @@ export class GoogleGeminiProvider implements IModelProvider {
   private apiKey: string;
   private modelName: string;
   private temperature: number;
+  private enableThinking: boolean;
 
   constructor(
     apiKey: string = '',
     modelName: string = 'gemini-2.0-flash',
-    temperature: number = 0.2
+    temperature: number = 0.2,
+    enableThinking: boolean = false
   ) {
     this.apiKey = apiKey;
     this.modelName = modelName;
     this.temperature = temperature;
+    this.enableThinking = enableThinking;
   }
 
   async isAvailable(): Promise<boolean> {
     return Boolean(this.apiKey && this.apiKey.trim().length > 0);
+  }
+
+  isThinkingSupported(): boolean {
+    return true;
   }
 
   async generateSimulation(payload: GenerationPromptPayload): Promise<GenerationResponse> {
@@ -34,6 +41,18 @@ export class GoogleGeminiProvider implements IModelProvider {
 
     const startTime = Date.now();
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelName}:generateContent?key=${this.apiKey}`;
+    const shouldUseThinking = payload.enableThinking ?? this.enableThinking;
+
+    const generationConfig: Record<string, any> = {
+      temperature: payload.temperature ?? this.temperature,
+      maxOutputTokens: payload.maxTokens || 4096
+    };
+
+    if (shouldUseThinking) {
+      generationConfig.thinking_config = {
+        thinking_budget: 2048
+      };
+    }
 
     const body = {
       system_instruction: {
@@ -45,10 +64,7 @@ export class GoogleGeminiProvider implements IModelProvider {
           parts: [{ text: payload.userPrompt }]
         }
       ],
-      generationConfig: {
-        temperature: payload.temperature ?? this.temperature,
-        maxOutputTokens: payload.maxTokens || 4096
-      }
+      generationConfig
     };
 
     const res = await fetch(endpoint, {
@@ -66,11 +82,25 @@ export class GoogleGeminiProvider implements IModelProvider {
 
     const data = await res.json();
     const durationMs = Date.now() - startTime;
-    const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    const cleanCode = sanitizeCodeFences(textOutput);
+    const parts = data.candidates?.[0]?.content?.parts || [];
+
+    let nativeThinking: string | undefined;
+    let textOutput = '';
+
+    for (const part of parts) {
+      if (part.thought && typeof part.text === 'string') {
+        nativeThinking = (nativeThinking ? nativeThinking + '\n' : '') + part.text;
+      } else if (typeof part.text === 'string') {
+        textOutput += part.text;
+      }
+    }
+
+    const parsed = extractSimulationTags(textOutput);
+    const thinkingTrace = nativeThinking || parsed.thinkingTrace;
 
     return {
-      rawCode: cleanCode,
+      rawCode: parsed.code,
+      thinkingTrace,
       provider: this.type,
       modelName: this.modelName,
       durationMs,

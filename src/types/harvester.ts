@@ -37,6 +37,11 @@ export interface SelectionMetadata {
   language?: string;
 }
 
+export interface HarvestedViewport {
+  width: number;
+  height: number;
+}
+
 export interface HarvestedContext {
   /** Unique correlation ID for this harvest event */
   harvestId: string;
@@ -48,4 +53,8 @@ export interface HarvestedContext {
   mathSnippets: MathSnippet[];
   /** Surrounding document structure and hierarchical context */
   domContext: SurroundingDOMContext;
+  /** Measured viewport bounds from host container */
+  viewport?: HarvestedViewport;
+  /** Upfront deduced archetype triage */
+  archetypeTriage?: string;
 }

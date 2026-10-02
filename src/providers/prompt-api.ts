@@ -6,7 +6,7 @@
  */
 
 import { GenerationPromptPayload, GenerationResponse, IModelProvider, ProviderType } from '../types/models';
-import { sanitizeCodeFences } from '../runtime/preflight';
+import { extractSimulationTags } from '../runtime/preflight';
 import { ensureOffscreenDocument } from '../runtime/offscreen-manager';
 import { PromptApiCheckResponse, PromptApiGenerateResponse } from '../types/ipc';
 
@@ -329,10 +329,11 @@ export class ChromePromptApiProvider implements IModelProvider {
 
       const durationMs = Date.now() - startTime;
       console.log(`[SimIt Prompt API] Generation completed in ${durationMs}ms`);
-      const cleanCode = sanitizeCodeFences(rawResult);
+      const parsed = extractSimulationTags(rawResult);
 
       return {
-        rawCode: cleanCode,
+        rawCode: parsed.code,
+        thinkingTrace: parsed.thinkingTrace,
         provider: this.type,
         modelName: this.modelName,
         durationMs

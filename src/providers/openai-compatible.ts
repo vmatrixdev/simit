@@ -4,7 +4,7 @@
  */
 
 import { GenerationPromptPayload, GenerationResponse, IModelProvider, ProviderType } from '../types/models';
-import { sanitizeCodeFences } from '../runtime/preflight';
+import { extractSimulationTags } from '../runtime/preflight';
 
 export class OpenAICompatibleProvider implements IModelProvider {
   readonly type: ProviderType = 'openai-compatible';
@@ -75,10 +75,11 @@ export class OpenAICompatibleProvider implements IModelProvider {
     const data = await res.json();
     const durationMs = Date.now() - startTime;
     const textOutput = data.choices?.[0]?.message?.content || '';
-    const cleanCode = sanitizeCodeFences(textOutput);
+    const parsed = extractSimulationTags(textOutput);
 
     return {
-      rawCode: cleanCode,
+      rawCode: parsed.code,
+      thinkingTrace: parsed.thinkingTrace,
       provider: this.type,
       modelName: this.modelName,
       durationMs,

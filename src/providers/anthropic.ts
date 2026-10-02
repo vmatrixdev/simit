@@ -4,7 +4,7 @@
  */
 
 import { GenerationPromptPayload, GenerationResponse, IModelProvider, ProviderType } from '../types/models';
-import { sanitizeCodeFences } from '../runtime/preflight';
+import { extractSimulationTags } from '../runtime/preflight';
 
 export class AnthropicProvider implements IModelProvider {
   readonly type: ProviderType = 'anthropic';
@@ -13,21 +13,31 @@ export class AnthropicProvider implements IModelProvider {
   private modelName: string;
   private baseUrl: string;
   private temperature: number;
+  private enableThinking: boolean;
+  private thinkingBudgetTokens: number;
 
   constructor(
     apiKey: string = '',
     modelName: string = 'claude-3-5-sonnet-20241022',
     baseUrl: string = 'https://api.anthropic.com/v1',
-    temperature: number = 0.2
+    temperature: number = 0.2,
+    enableThinking: boolean = false,
+    thinkingBudgetTokens: number = 2048
   ) {
     this.apiKey = apiKey;
     this.modelName = modelName;
     this.baseUrl = baseUrl.replace(/\/+$/, '');
     this.temperature = temperature;
+    this.enableThinking = enableThinking;
+    this.thinkingBudgetTokens = thinkingBudgetTokens;
   }
 
   async isAvailable(): Promise<boolean> {
     return Boolean(this.apiKey && this.apiKey.trim().length > 0);
+  }
+
+  isThinkingSupported(): boolean {
+    return true;
   }
 
   async generateSimulation(payload: GenerationPromptPayload): Promise<GenerationResponse> {
@@ -37,11 +47,11 @@ export class AnthropicProvider implements IModelProvider {
 
     const startTime = Date.now();
     const endpoint = `${this.baseUrl}/messages`;
+    const shouldUseThinking = payload.enableThinking ?? this.enableThinking;
 
-    const body = {
+    const body: Record<string, any> = {
       model: this.modelName,
-      max_tokens: payload.maxTokens || 4096,
-      temperature: payload.temperature ?? this.temperature,
+      max_tokens: payload.maxTokens || (shouldUseThinking ? 6000 : 4096),
       system: payload.systemPrompt,
       messages: [
         {
@@ -50,6 +60,17 @@ export class AnthropicProvider implements IModelProvider {
         }
       ]
     };
+
+    if (shouldUseThinking) {
+      body.thinking = {
+        type: 'enabled',
+        budget_tokens: payload.thinkingBudgetTokens || this.thinkingBudgetTokens
+      };
+      // Anthropic requires temperature: 1.0 when thinking is enabled
+      body.temperature = 1.0;
+    } else {
+      body.temperature = payload.temperature ?? this.temperature;
+    }
 
     const res = await fetch(endpoint, {
       method: 'POST',
@@ -69,11 +90,27 @@ export class AnthropicProvider implements IModelProvider {
 
     const data = await res.json();
     const durationMs = Date.now() - startTime;
-    const textOutput = data.content?.[0]?.text || '';
-    const cleanCode = sanitizeCodeFences(textOutput);
+
+    // Extract native thinking block if returned
+    let nativeThinking: string | undefined;
+    let textOutput = '';
+
+    if (Array.isArray(data.content)) {
+      for (const block of data.content) {
+        if (block.type === 'thinking' && block.thinking) {
+          nativeThinking = block.thinking;
+        } else if (typeof block.text === 'string') {
+          textOutput += block.text;
+        }
+      }
+    }
+
+    const parsed = extractSimulationTags(textOutput);
+    const thinkingTrace = nativeThinking || parsed.thinkingTrace;
 
     return {
-      rawCode: cleanCode,
+      rawCode: parsed.code,
+      thinkingTrace,
       provider: this.type,
       modelName: this.modelName,
       durationMs,

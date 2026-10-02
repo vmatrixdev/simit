@@ -18,6 +18,39 @@ export interface PreFlightMockGlobals {
   d3?: any;
   anime?: any;
   katex?: any;
+  Tweakpane?: any;
+  functionPlot?: any;
+  cytoscape?: any;
+}
+
+export interface ExtractedSimulationTags {
+  thinkingTrace?: string;
+  code: string;
+}
+
+/**
+ * Extracts decoupled reasoning scratchpad and executable code blocks
+ * Conforms to docs/specs/agent_loop.md#2
+ */
+export function extractSimulationTags(rawText: string): ExtractedSimulationTags {
+  if (!rawText) return { code: '' };
+
+  let thinkingTrace: string | undefined;
+  const thinkingMatch = rawText.match(/<simulation_thinking>([\s\S]*?)<\/simulation_thinking>/i);
+  if (thinkingMatch) {
+    thinkingTrace = thinkingMatch[1].trim();
+  }
+
+  let rawCode = rawText;
+  const codeMatch = rawText.match(/<simulation_code>([\s\S]*?)<\/simulation_code>/i);
+  if (codeMatch) {
+    rawCode = codeMatch[1].trim();
+  } else if (thinkingMatch) {
+    rawCode = rawText.replace(/<simulation_thinking>[\s\S]*?<\/simulation_thinking>/i, '').trim();
+  }
+
+  const code = sanitizeCodeFences(rawCode);
+  return { thinkingTrace, code };
 }
 
 /**
@@ -330,10 +363,21 @@ export function normalizeSimModule(rawModule: any): SimModule {
 
 /**
  * Strips markdown code fences (```javascript, ```js, ```) from raw LLM output
+ * and unpackages <simulation_code> tags conforming to docs/specs/agent_loop.md#2
  */
 export function sanitizeCodeFences(rawCode: string): string {
   if (!rawCode) return '';
   let cleaned = rawCode.trim();
+
+  // 0. Extract inside <simulation_code>...</simulation_code> tag if present
+  if (cleaned.includes('<simulation_code>')) {
+    const match = cleaned.match(/<simulation_code>([\s\S]*?)<\/simulation_code>/i);
+    if (match && match[1]) {
+      cleaned = match[1].trim();
+    }
+  } else if (cleaned.includes('<simulation_thinking>')) {
+    cleaned = cleaned.replace(/<simulation_thinking>[\s\S]*?<\/simulation_thinking>/i, '').trim();
+  }
 
   // 1. If wrapped in markdown code fence (even with conversational text preamble before it)
   const fenceMatch = cleaned.match(/```(?:javascript|js|typescript|ts)?\s*([\s\S]*?)(?:```|$)/i);
@@ -425,6 +469,9 @@ export async function runPreFlightSmokeTest(
       const d3Instance = globals?.d3 || (typeof window !== 'undefined' ? (window as any).d3 : undefined);
       const animeInstance = globals?.anime || (typeof window !== 'undefined' ? (window as any).anime : undefined);
       const katexInstance = globals?.katex || (typeof window !== 'undefined' ? (window as any).katex : undefined);
+      const tweakpaneInstance = globals?.Tweakpane || (typeof window !== 'undefined' ? (window as any).Tweakpane : undefined);
+      const functionPlotInstance = globals?.functionPlot || (typeof window !== 'undefined' ? (window as any).functionPlot : undefined);
+      const cytoscapeInstance = globals?.cytoscape || (typeof window !== 'undefined' ? (window as any).cytoscape : undefined);
 
       // Create function scope with standard available globals
       // Disallow window.parent, document.cookie, etc.
@@ -432,13 +479,25 @@ export async function runPreFlightSmokeTest(
         'd3',
         'anime',
         'katex',
+        'Tweakpane',
+        'functionPlot',
+        'cytoscape',
         'window',
         'document',
         `"use strict";
          ${executableCode}`
       );
 
-      const evalResult = evaluator(d3Instance, animeInstance, katexInstance, typeof window !== 'undefined' ? window : {}, typeof document !== 'undefined' ? document : {});
+      const evalResult = evaluator(
+        d3Instance,
+        animeInstance,
+        katexInstance,
+        tweakpaneInstance,
+        functionPlotInstance,
+        cytoscapeInstance,
+        typeof window !== 'undefined' ? window : {},
+        typeof document !== 'undefined' ? document : {}
+      );
 
       if (typeof evalResult === 'function') {
         const Cls = evalResult as any;

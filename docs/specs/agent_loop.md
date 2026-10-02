@@ -1,6 +1,20 @@
-# Agent Loop & System Prompt Specification
+# Technical Specification: Agent Loop, Reasoning Decoupling & Viewport Injection
 
-This document specifies the autonomous **Agent Loop**, the **System Prompt Contract**, and the **Context Rolling Engine** for **SimIt**. It details how technical context and viewport bounds are ingested, how reasoning is decoupled from code synthesis, the declarative sandboxed library contracts, and how the extension manages both pre-flight automated repair and infinite conversational evolution.
+**Status:** Approved & Living Specification  
+**Domain:** Code Generation, Reasoning Decoupling & Dynamic Viewport Injection  
+**Living Document:** Permanent architectural specification under `docs/specs/`  
+**Tracking Backlog:** [docs/backlog/tasks.md](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/backlog/tasks.md)  
+**Executable Test Suite:** [tests/integration.test.ts](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/tests/integration.test.ts)
+
+---
+
+## 1. Domain Models & Contracts
+
+Domain contracts are authored in TypeScript under [`src/types/`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/):
+- [`HarvestedContext`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/harvester.ts): Harvested snippet, nearby math, and measured viewport bounds.
+- [`GenerationPromptPayload`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/models.ts): System instructions, context, dynamic viewport, and chat turns.
+- [`SimModule`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/simulation.ts): Target executable ES module contract with `init`, `update`, and parameter schema.
+- [`ArchetypeTriageResult`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/archetype.ts): Triage outcome routing to direct simulation or structured fallbacks.
 
 ---
 
@@ -238,4 +252,18 @@ Every validated simulation module is snapshotted into local `IndexedDB` (`simit_
 - `v2`: Evolution chip applied ("Add Temperature Scaling").
 - `v3`: User chat refinement ("Highlight active node in orange").
 The Side Panel UI renders a version scrubber (`v1`, `v2`, `v3`) enabling 1-click instant rollback and parameter state restoration with zero network calls.
+
+---
+
+## 9. Behavioral Acceptance Matrix
+
+| ID | Scenario | Given / State | When / Input | Expected Output | Verification Target |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **R1** | Explicit Tag Separation | Model produces thinking + code | Provider parses output | `<simulation_thinking>` logged to ATIF; `<simulation_code>` isolated for pre-flight | `tests/integration.test.ts` |
+| **R2** | Viewport Measurement Injection | Side Panel container is $420 \times 500\text{ px}$ | Prompt Composer builds payload | Prompt explicitly injects `width: 420px, height: 500px` | `tests/integration.test.ts` |
+| **R3** | Viewport Dimension Fallback Clamp | Min bounds clamped to $320 \times 380\text{ px}$ | Harvested with $0 \times 0$ bounds | Injects default fallback `width: 380px, height: 450px` | `tests/integration.test.ts` |
+| **R4** | Code-Only Directives Banned | Prompt generated for model | Inspect system instructions | System prompt contains NO "code only" directives; mandates `<simulation_thinking>` | `tests/integration.test.ts` |
+| **R5** | 1-Shot Pre-Flight Self-Repair | Initial synthesis throws syntax error | Offscreen detects crash | Triggers 1-shot repair with error stack; re-evaluates | `tests/repair_and_export.test.ts` |
+| **R6** | Rolling Context Window Compaction | Turn 3 refinement requested | Context compactor runs | Retains static anchor + latest $v_2$ code snapshot + last 2 chat turns | `tests/integration.test.ts` |
+
 

@@ -27,3 +27,13 @@ html, body {
   max-height: 100%;
   display: block;
 }
+
+#pane-dock {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  max-width: 220px;
+  z-index: 1000;
+  pointer-events: auto;
+}
+

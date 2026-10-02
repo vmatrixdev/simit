@@ -58,3 +58,58 @@ export interface SimModule {
   step?(stepIndex: number): void;
   destroy?(): void;
 }
+
+// Declarative Runtime Stack Contracts (Tweakpane, functionPlot, Cytoscape)
+
+export interface TweakpaneBindingConfig {
+  container?: HTMLElement;
+  title?: string;
+  expanded?: boolean;
+}
+
+export interface FunctionPlotCurveData {
+  fn: string;
+  derivative?: {
+    fn: string;
+    updateOnMouseMove?: boolean;
+  };
+  color?: string;
+  graphType?: 'polyline' | 'scatter';
+  closed?: boolean;
+}
+
+export interface FunctionPlotOptions {
+  target: string | HTMLElement;
+  width?: number;
+  height?: number;
+  xAxis?: { domain?: [number, number]; label?: string };
+  yAxis?: { domain?: [number, number]; label?: string };
+  grid?: boolean;
+  data: FunctionPlotCurveData[];
+}
+
+export interface CytoscapeElementData {
+  id: string;
+  label?: string;
+  parent?: string;
+  source?: string;
+  target?: string;
+  [key: string]: any;
+}
+
+export interface CytoscapeElement {
+  group?: 'nodes' | 'edges';
+  data: CytoscapeElementData;
+  classes?: string;
+  position?: { x: number; y: number };
+}
+
+export interface CytoscapeLayoutOptions {
+  name: 'breadthfirst' | 'circle' | 'concentric' | 'cose' | 'dagre' | 'grid' | 'preset' | 'random';
+  directed?: boolean;
+  padding?: number;
+  animate?: boolean;
+  animationDuration?: number;
+  [key: string]: any;
+}
+

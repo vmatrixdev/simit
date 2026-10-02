@@ -1,6 +1,6 @@
 /**
  * SimIt Prompt Builder
- * Assembles system and user prompts conforming to docs/specs/agent_loop.md#5
+ * Assembles system and user prompts conforming to docs/specs/agent_loop.md#2 and docs/specs/agent_loop.md#6
  */
 
 import { HarvestedContext } from '../types/harvester';
@@ -13,68 +13,64 @@ export interface SimulationViewport {
 }
 
 export function buildSimulationSystemPrompt(viewport?: SimulationViewport): string {
-  const viewportDesc = viewport
-    ? `The container currently has dynamically measured viewport dimensions: width = ${viewport.width}px, height = ${viewport.height}px (derived directly from available browser Side Panel space).`
-    : `The container adapts dynamically to available browser Side Panel space.`;
+  const defaultWidth = viewport?.width ? Math.max(320, viewport.width) : 380;
+  const defaultHeight = viewport?.height ? Math.max(380, viewport.height) : 450;
 
-  const defaultWidth = viewport?.width || 400;
-  const defaultHeight = viewport?.height || 300;
+  return `You are SimIt, an expert simulation and visual explanation engineer. Your mission is to convert complex technical concepts, mathematical formulations, and algorithms into epistemic software: playable, parameter-driven interactive visual models.
 
-  return `You are SimIt, an expert graphics and simulation engineer. Your task is to transform technical concepts, scientific formulas, and algorithms into self-contained, interactive visual simulations.
+### VIEWPORT SPECIFICATION
+The host container #sim-root currently has measured viewport dimensions from the active browser Side Panel: width = ${defaultWidth}px, height = ${defaultHeight}px.
+Structure your layout to fit dynamically within these bounds without horizontal or vertical overflow.
 
-### EXECUTION ENVIRONMENT & AVAILABLE TOOLS
-Your code runs inside an isolated browser iframe sandbox with NO network access.
-The following localized libraries are pre-loaded in the global scope:
-1. \`d3\` (v7): Available globally as \`d3\`. Use for geometric projections, axes, scales, and layouts.
-2. \`anime\` (v3): Available globally as \`anime\`. Use for timelines, tweens, and smooth animation loops.
-3. \`katex\`: Available globally as \`katex\`. Use \`katex.render(formula, domElement)\` for rendering LaTeX equations.
-4. Container & Dynamic Viewport: You are given an empty DOM element \`<div id="sim-root"></div>\`.
-${viewportDesc}
-Ensure your Canvas, SVG, Cytoscape graphs, and coordinate systems scale fluidly to utilize this available space without clipping or fixed-pixel overflow.
+### PRE-LOADED DECLARATIVE LIBRARIES
+The following libraries are available in the global scope inside the sandbox:
+1. \`Tweakpane\` (v4.x): Use for parameter controls. You define parameters in the exported object's \`parameters\` array; SimIt automatically wires Tweakpane with zero-latency updates.
+2. \`functionPlot\` (v1.x): Global \`functionPlot\`. Use for 2D Cartesian curves: functionPlot({ target: container, width: ${defaultWidth}, height: ${defaultHeight - 80}, data: [...] }).
+3. \`cytoscape\` (v3.x): Global \`cytoscape\`. Use for DAGs, trees, and state machine graphs: cytoscape({ container, elements: [...], layout: { name: 'breadthfirst' } }).
+4. \`anime\` (v3.x): Global \`anime\`. Use for timelines, tweens, and smooth state transitions.
+5. \`katex\` (v0.16.x): Global \`katex\`. Use \`katex.render(formula, domElement)\` for rendering LaTeX equations.
+6. \`d3\` (v7.x): Global \`d3\`. Use for geometric projections, axes, and scales.
+7. HTML5 Canvas 2D: Native canvas element created and appended to container.
 
-### RESTRICTIONS & SIZING RULES
-- Keep your code compact, modular, and under 200 lines (do NOT generate huge static arrays; calculate coordinates dynamically).
-- Do NOT use \`fetch\`, \`XMLHttpRequest\`, \`WebSocket\`, or load external CDN scripts.
-- Do NOT use \`eval()\` or access \`window.parent\` / \`document.cookie\`.
-- Ensure all computations are safe: guard against division by zero, \`NaN\`, and infinite loops.
-- All styles must be applied directly via JavaScript or inline CSS within the container.
+### RESTRICTIONS & CSP RULES
+- NO network access: do NOT use \`fetch\`, \`XMLHttpRequest\`, \`WebSocket\`, or external CDN scripts.
+- NO \`eval()\` or access to \`window.parent\` / \`document.cookie\`.
+- Guard defensively against division by zero, \`NaN\`, empty arrays, and infinite loops.
+- Do NOT output arbitrary moving balls or generic decorative particles if the concept is not dynamic; use Cytoscape DAGs or interactive concept maps instead.
 
-### OUTPUT FORMAT
-Output ONLY valid JavaScript (ES module format) with NO markdown backticks and NO conversational preamble.
-Start your response immediately with: export default {
+### OUTPUT FORMAT SPECIFICATION (REASONING DECOUPLING)
+You must structure your response into two distinct sections:
+1. First, inside \`<simulation_thinking>...</simulation_thinking>\`, plan the mathematical formulation, coordinate systems, visual metaphors, parameter bounds, and step plans.
+2. Second, inside \`<simulation_code>...</simulation_code>\`, output ONLY valid executable JavaScript exporting a default object adhering to the simEngine contract.
 
-CRITICAL FORMAT RULES:
-- Do NOT write an ES6 class inside the object (no "class Foo {"). The exported default MUST be a plain object literal.
-- Do NOT use document.getElementById() or assume DOM elements exist. You MUST dynamically create any canvas or svg and append it to container:
-  const canvas = document.createElement('canvas');
-  canvas.width = container.clientWidth || ${defaultWidth};
-  canvas.height = container.clientHeight || ${defaultHeight};
-  container.appendChild(canvas);
-- All logic must live inside init(container, params), update(params), and destroy().
-
-Your module must strictly conform to this structure:
-
+Example:
+<simulation_thinking>
+1. Model: Softmax temperature scaling P(i) = exp(z_i / tau) / sum(exp(z_j / tau)).
+2. Visual: 2D bar chart for probabilities + KaTeX formula annotation.
+3. Parameters: tau slider from 0.1 to 5.0 with default 1.0.
+</simulation_thinking>
+<simulation_code>
 export default {
-  title: "Harmonic Oscillator",
-  description: "Interactive mass-spring physical simulation.",
+  title: "Softmax Temperature Scaling",
+  description: "Observe probability flattening as temperature tau increases.",
   parameters: [
-    { id: "k", label: "Spring Constant (k)", type: "slider", min: 1, max: 50, step: 1, default: 10 },
-    { id: "m", label: "Mass (m)", type: "slider", min: 0.5, max: 10, step: 0.5, default: 1 }
+    { id: "tau", label: "Temperature (τ)", type: "slider", min: 0.1, max: 5.0, step: 0.1, default: 1.0 }
   ],
   init(container, params) {
     const canvas = document.createElement('canvas');
     canvas.width = container.clientWidth || ${defaultWidth};
     canvas.height = container.clientHeight || ${defaultHeight};
     container.appendChild(canvas);
-    // Draw initial state using params
+    // Draw initial state
   },
   update(params) {
-    // Reactively update drawing with new parameter values
+    // Reactively update visual
   },
   destroy() {
-    // Cancel any active animation loops
+    // Clean up timers
   }
-};`;
+};
+</simulation_code>`;
 }
 
 export const SIMULATION_SYSTEM_PROMPT = buildSimulationSystemPrompt();
@@ -88,12 +84,12 @@ export function buildUserPromptFromContext(
 ): string {
   const parts: string[] = [];
 
-  parts.push(`Write a self-contained JavaScript interactive simulation module for:`);
+  parts.push(`Transform the following technical context into an interactive epistemic visual simulation:`);
   parts.push(`### CONCEPT:`);
   parts.push(context.selection.selectedText || '(Technical concept)');
 
   if (context.mathSnippets && context.mathSnippets.length > 0) {
-    parts.push(`\n### EQUATIONS:`);
+    parts.push(`\n### EQUATIONS & FORMULAS:`);
     for (const math of context.mathSnippets) {
       parts.push(`- $${math.latex}$`);
     }
@@ -107,7 +103,7 @@ export function buildUserPromptFromContext(
       parts.push(`Caption: ${context.domContext.caption}`);
     }
     if (context.domContext.paragraphSnippet) {
-      parts.push(`Context: ${context.domContext.paragraphSnippet}`);
+      parts.push(`Surrounding Context: ${context.domContext.paragraphSnippet}`);
     }
   }
 
@@ -117,12 +113,10 @@ export function buildUserPromptFromContext(
   }
 
   parts.push(`
-CRITICAL GENERATION INSTRUCTIONS:
-- Do NOT write conversational text, introductions, or "Simulation Plans".
-- Do NOT write markdown code blocks or backticks.
-- Do NOT use "import" statements (libraries d3, anime, katex are global).
-- Start your response IMMEDIATELY with the code:
-export default {`);
+### INSTRUCTIONS:
+- First, write your mathematical formulation and visual plan inside <simulation_thinking>...</simulation_thinking>.
+- Second, write your complete ES module inside <simulation_code>...</simulation_code> starting with "export default {".
+- Ensure code is defensive, self-contained, and utilizes the pre-loaded declarative libraries.`);
 
   return parts.join('\n');
 }
@@ -149,8 +143,9 @@ ${errorMessage}
 ${errorStack || ''}
 
 ### REPAIR DIRECTIVES:
-1. Fix the error. Return ONLY valid ES module JavaScript starting with "export default {" with NO commentary.
-2. Keep code concise (under 200 lines).`;
+1. Analyze the root cause in <simulation_thinking>...</simulation_thinking>.
+2. Provide the repaired executable ES module inside <simulation_code>...</simulation_code> starting with "export default {".
+3. Keep code robust and handle boundary parameter conditions.`;
 
   return {
     systemPrompt: buildSimulationSystemPrompt(viewport),
@@ -184,9 +179,9 @@ ${errorMessage}
 ${errorStack || ''}
 
 ### REPAIR DIRECTIVE:
-1. Fix the error that occurred under the specified parameter state.
-2. Defensively handle extreme parameter ranges and edge cases.
-3. Return ONLY the repaired executable ES module code.`;
+1. Explain the parameter edge case in <simulation_thinking>...</simulation_thinking>.
+2. Return the repaired ES module code inside <simulation_code>...</simulation_code>.
+3. Defensively handle extreme parameter ranges and singularities.`;
 
   return {
     systemPrompt: buildSimulationSystemPrompt(viewport),

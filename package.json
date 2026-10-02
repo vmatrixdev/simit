@@ -30,5 +30,11 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.2",
     "vitest": "^5.0.3"
+  },
+  "dependencies": {
+    "@types/cytoscape": "^3.21.9",
+    "cytoscape": "^3.34.3",
+    "function-plot": "^1.25.4",
+    "tweakpane": "^4.0.5"
   }
 }

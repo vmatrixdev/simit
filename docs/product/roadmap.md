@@ -50,7 +50,7 @@ flowchart LR
 - **M4: Standalone Export & ATIF Telemetry**: 1-click self-contained HTML simulation exporter and standardized ATIF trajectory logging (`.atif.json`).
 - **M5: BYOK Multi-Provider Engine**: Local settings management for frontier cloud providers (Anthropic Claude, Google Gemini, Ollama/OpenAI-compatible).
 
-### Phase 2: Declarative Runtime, Reasoning Decoupling & Archetype Triage (Planned)
+### Phase 2: Declarative Runtime, Reasoning Decoupling & Archetype Triage (Completed)
 - **M6: Declarative Runtime Stack Integration**: Pre-loaded sandbox libraries (`Tweakpane v4`, `functionPlot v1`, `cytoscape v3`, `anime.js v3`, `d3 v7`, `katex v0.16`) eliminating manual DOM wiring.
 - **M7: Reasoning Decoupling & Explicit Viewport Injection**: Structured prompt pipeline using `<simulation_thinking>` scratchpad and `<simulation_code>` blocks alongside exact container pixel bounds.
 - **M8: Archetype Triage & Concept Fallbacks**: Upfront viability classification routing non-simulatable text to Cytoscape concept DAGs or Socratic breakdowns without meaningless motion.
@@ -71,9 +71,9 @@ flowchart LR
 | **M3: Local-First MVP** | On-device simulation code generator via Chrome Prompt API | Gemini Nano / Gemma | $0.00 | **Completed** |
 | **M4: Export & ATIF Telemetry** | Standalone HTML export + ATIF trajectory JSON export | Local / Any Provider | $0.00 | **Completed** |
 | **M5: BYOK Provider Support** | Configurable API Key, Base URL, Model selector (Claude/Gemini/Ollama) | BYOK Cloud / Custom API | User-funded (BYOK) | **Completed** |
-| **M6: Declarative Runtime Stack** | Tweakpane v4, functionPlot v1, Cytoscape v3 bundled in sandbox | Local / BYOK | $0.00 | Planned |
-| **M7: Reasoning Decoupling & Viewport** | `<simulation_thinking>` + `<simulation_code>` tags, injected pixel dimensions | Local / BYOK | $0.00 | Planned |
-| **M8: Archetype Triage & Fallbacks** | Upfront viability triage, concept DAG & Socratic chip fallbacks | Local / BYOK | $0.00 | Planned |
+| **M6: Declarative Runtime Stack** | Tweakpane v4, functionPlot v1, Cytoscape v3 bundled in sandbox | Local / BYOK | $0.00 | **Completed** |
+| **M7: Reasoning Decoupling & Viewport** | `<simulation_thinking>` + `<simulation_code>` tags, injected pixel dimensions | Local / BYOK | $0.00 | **Completed** |
+| **M8: Archetype Triage & Fallbacks** | Upfront viability triage, concept DAG & Socratic chip fallbacks | Local / BYOK | $0.00 | **Completed** |
 | **M9: Dual-Track Evolution** | Pre-computed evolution chips, refinement chat, direct Tweakpane updates | Local / BYOK | $0.00 | Planned |
 | **M10: Context Compactor & Session Stack** | Sliding 2-turn window + code compaction, IndexedDB persistence & revert | Local / BYOK | $0.00 | Planned |
 | **M11: Multi-Model Orchestration** | Autonomous escalation from Gemini Nano triage to frontier models | Hybrid Routing | Configurable | Planned |

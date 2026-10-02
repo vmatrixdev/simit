@@ -6,10 +6,16 @@
 import { HarvestContextRequest, HarvestContextResponse } from '../types/ipc';
 import { HarvestedContext } from '../types/harvester';
 import { resolveActiveProvider, loadBYOKSettings } from '../providers/resolver';
-import { buildUserPromptFromContext, SIMULATION_SYSTEM_PROMPT } from '../providers/prompt-builder';
+import {
+  buildUserPromptFromContext,
+  buildSimulationSystemPrompt,
+  SimulationViewport,
+  SIMULATION_SYSTEM_PROMPT
+} from '../providers/prompt-builder';
 import { executePreFlightRepairLoop, executeInteractiveRepair } from '../runtime/repair';
 import { AtifTrajectoryLogger } from '../export/atif-logger';
-import { runPreFlightSmokeTest, sanitizeCodeFences } from '../runtime/preflight';
+import { runPreFlightSmokeTest, sanitizeCodeFences, extractSimulationTags } from '../runtime/preflight';
+import { classifyArchetype } from '../runtime/triage';
 
 import { PreFlightTestRequest, PreFlightTestResponse } from '../types/ipc';
 import { ensureOffscreenDocument } from '../runtime/offscreen-manager';
@@ -146,6 +152,10 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
     return;
   }
 
+  // Upfront Archetype Triage conforming to docs/specs/archetype_triage.md
+  const classification = classifyArchetype(harvestedContext);
+  harvestedContext.archetypeTriage = classification.archetype;
+
   // Initialize ATIF trajectory tracking
   const atifLogger = new AtifTrajectoryLogger(
     harvestedContext,
@@ -155,24 +165,38 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
     settings.providers[provider.type]?.temperature || 0.2
   );
 
+  atifLogger.recordStep('ARCHETYPE_TRIAGE', {
+    selected_text: harvestedContext.selection.selectedText,
+    archetype: classification.archetype,
+    is_simulatable: classification.isSimulatable,
+    confidence: classification.confidence
+  });
+
   broadcastToSidePanel({
     type: 'SIMULATION_LOADING',
     title: 'Generating Simulation Code...',
-    description: `Synthesizing dynamic visual module via ${provider.type}.`
+    description: `Synthesizing ${classification.archetype.replace(/_/g, ' ')} via ${provider.type}.`
   });
 
-  const userPrompt = buildUserPromptFromContext(harvestedContext);
+  const viewport: SimulationViewport = {
+    width: harvestedContext.viewport?.width ? Math.max(320, harvestedContext.viewport.width) : 380,
+    height: harvestedContext.viewport?.height ? Math.max(380, harvestedContext.viewport.height) : 450
+  };
+
+  const systemPrompt = buildSimulationSystemPrompt(viewport);
+  const userPrompt = buildUserPromptFromContext(harvestedContext, viewport);
 
   atifLogger.recordStep('PROMPT_COMPOSE', {
-    system_prompt_length: SIMULATION_SYSTEM_PROMPT.length,
-    user_prompt_length: userPrompt.length
+    system_prompt_length: systemPrompt.length,
+    user_prompt_length: userPrompt.length,
+    viewport
   });
 
   let rawGeneratedCode = '';
   try {
     const startTime = Date.now();
     const generationRes = await provider.generateSimulation({
-      systemPrompt: SIMULATION_SYSTEM_PROMPT,
+      systemPrompt,
       userPrompt,
       temperature: settings.providers[provider.type]?.temperature || 0.2
     });
@@ -182,7 +206,7 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
     atifLogger.recordStep(
       'MODEL_INFERENCE',
       { prompt_length: userPrompt.length },
-      { code_length: rawGeneratedCode.length },
+      { code_length: rawGeneratedCode.length, thinking_trace: generationRes.thinkingTrace },
       Date.now() - startTime
     );
 

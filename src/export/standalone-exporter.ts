@@ -18,6 +18,9 @@ export interface StandaloneExportOptions {
   animeSource?: string;
   katexSource?: string;
   katexCssSource?: string;
+  tweakpaneSource?: string;
+  functionPlotSource?: string;
+  cytoscapeSource?: string;
 }
 
 export function generateStandaloneSimulationHtml(options: StandaloneExportOptions): string {
@@ -30,7 +33,10 @@ export function generateStandaloneSimulationHtml(options: StandaloneExportOption
     d3Source = '',
     animeSource = '',
     katexSource = '',
-    katexCssSource = ''
+    katexCssSource = '',
+    tweakpaneSource = '',
+    functionPlotSource = '',
+    cytoscapeSource = ''
   } = options;
 
   // Transform "export default" to executable return statement
@@ -230,6 +236,9 @@ export function generateStandaloneSimulationHtml(options: StandaloneExportOption
   ${d3Source ? `<script>${d3Source}</script>` : '<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>'}
   ${animeSource ? `<script>${animeSource}</script>` : '<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>'}
   ${katexSource ? `<script>${katexSource}</script>` : '<script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>'}
+  ${tweakpaneSource ? `<script>${tweakpaneSource}</script>` : '<script src="https://cdn.jsdelivr.net/npm/tweakpane@4"></script>'}
+  ${functionPlotSource ? `<script>${functionPlotSource}</script>` : '<script src="https://unpkg.com/function-plot/dist/function-plot.js"></script>'}
+  ${cytoscapeSource ? `<script>${cytoscapeSource}</script>` : '<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>'}
 </head>
 <body>
   <div class="container">

@@ -9,6 +9,7 @@ import { ProviderType } from './models';
 
 export type AtifStage =
   | 'CONTEXT_HARVEST'
+  | 'ARCHETYPE_TRIAGE'
   | 'PROMPT_COMPOSE'
   | 'MODEL_INFERENCE'
   | 'PREFLIGHT_VERIFY'

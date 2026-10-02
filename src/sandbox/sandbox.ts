@@ -1,6 +1,6 @@
 /**
  * SimIt Sandboxed Execution Controller
- * Conforms to docs/specs/sandbox_ipc.md and docs/specs/agent_loop.md#71
+ * Conforms to docs/specs/declarative_runtime.md and docs/specs/sandbox_ipc.md
  */
 
 import { HostToSandboxMessage, SandboxToHostMessage } from '../types/ipc';
@@ -9,6 +9,7 @@ import { sanitizeCodeFences, extractDefaultParameters, normalizeSimModule } from
 
 let activeModule: SimModule | null = null;
 let currentParams: ParameterState = {};
+let activePane: any = null;
 
 declare global {
   interface Window {
@@ -16,10 +17,30 @@ declare global {
     d3?: any;
     anime?: any;
     katex?: any;
+    Tweakpane?: any;
+    functionPlot?: any;
+    cytoscape?: any;
   }
 }
 
 window.__currentSimParams = currentParams;
+
+function cleanupPane() {
+  if (activePane) {
+    try {
+      if (typeof activePane.dispose === 'function') {
+        activePane.dispose();
+      }
+    } catch (e) {
+      console.warn('[Sandbox] Error disposing Tweakpane:', e);
+    }
+    activePane = null;
+  }
+  const paneDock = document.getElementById('pane-dock');
+  if (paneDock) {
+    paneDock.innerHTML = '';
+  }
+}
 
 // Global error hooks catching unhandled runtime exceptions
 window.addEventListener('error', (event) => {
@@ -58,8 +79,13 @@ window.addEventListener('message', (event) => {
     case 'SANDBOX_INIT_SIMULATION': {
       try {
         if (activeModule && typeof activeModule.destroy === 'function') {
-          activeModule.destroy();
+          try {
+            activeModule.destroy();
+          } catch (e) {
+            console.warn('[Sandbox] Error destroying previous module:', e);
+          }
         }
+        cleanupPane();
         simRoot.innerHTML = '';
 
         const code = sanitizeCodeFences(data.code);
@@ -77,13 +103,25 @@ window.addEventListener('message', (event) => {
           'd3',
           'anime',
           'katex',
+          'Tweakpane',
+          'functionPlot',
+          'cytoscape',
           'window',
           'document',
           `"use strict";
            ${executableCode}`
         );
 
-        const evalResult = evaluator(window.d3, window.anime, window.katex, window, document);
+        const evalResult = evaluator(
+          window.d3,
+          window.anime,
+          window.katex,
+          window.Tweakpane,
+          window.functionPlot,
+          window.cytoscape,
+          window,
+          document
+        );
 
         if (typeof evalResult === 'function') {
           const Cls = evalResult as any;
@@ -130,6 +168,62 @@ window.addEventListener('message', (event) => {
         currentParams = { ...defaults, ...(data.initialParams || {}) };
         window.__currentSimParams = currentParams;
 
+        // Auto-dock Tweakpane controls inside #pane-dock if parameters exist
+        const PaneClass = window.Tweakpane?.Pane || (typeof window.Tweakpane === 'function' ? window.Tweakpane : null);
+        if (PaneClass && paramsDef.length > 0) {
+          try {
+            const paneDock = document.getElementById('pane-dock');
+            activePane = new PaneClass({
+              container: paneDock || undefined,
+              title: 'Controls'
+            });
+
+            for (const p of paramsDef) {
+              if (p.type === 'slider' || p.type === 'stepper') {
+                activePane.addBinding(currentParams, p.id, {
+                  min: p.min !== undefined ? p.min : 0,
+                  max: p.max !== undefined ? p.max : 100,
+                  step: p.step !== undefined ? p.step : 1,
+                  label: p.label || p.id
+                }).on('change', (ev: any) => {
+                  currentParams[p.id] = ev.value;
+                  window.__currentSimParams = currentParams;
+                  if (activeModule && typeof activeModule.update === 'function') {
+                    activeModule.update(currentParams);
+                  }
+                });
+              } else if (p.type === 'toggle') {
+                activePane.addBinding(currentParams, p.id, {
+                  label: p.label || p.id
+                }).on('change', (ev: any) => {
+                  currentParams[p.id] = ev.value;
+                  window.__currentSimParams = currentParams;
+                  if (activeModule && typeof activeModule.update === 'function') {
+                    activeModule.update(currentParams);
+                  }
+                });
+              } else if (p.type === 'select') {
+                const optionsMap: Record<string, string> = {};
+                for (const opt of p.options || []) {
+                  optionsMap[opt] = opt;
+                }
+                activePane.addBinding(currentParams, p.id, {
+                  options: optionsMap,
+                  label: p.label || p.id
+                }).on('change', (ev: any) => {
+                  currentParams[p.id] = ev.value;
+                  window.__currentSimParams = currentParams;
+                  if (activeModule && typeof activeModule.update === 'function') {
+                    activeModule.update(currentParams);
+                  }
+                });
+              }
+            }
+          } catch (tpErr) {
+            console.warn('[Sandbox] Tweakpane auto-docking warning:', tpErr);
+          }
+        }
+
         activeModule.init(simRoot, currentParams);
 
         // Notify host that simulation is ready
@@ -157,6 +251,9 @@ window.addEventListener('message', (event) => {
       try {
         currentParams = { ...currentParams, ...(data.params || {}) };
         window.__currentSimParams = currentParams;
+        if (activePane && typeof activePane.refresh === 'function') {
+          activePane.refresh();
+        }
         activeModule.update(currentParams);
       } catch (err: any) {
         const errorMsg: SandboxToHostMessage = {
@@ -171,6 +268,7 @@ window.addEventListener('message', (event) => {
     }
 
     case 'SANDBOX_DESTROY': {
+      cleanupPane();
       if (activeModule && typeof activeModule.destroy === 'function') {
         try {
           activeModule.destroy();

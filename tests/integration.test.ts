@@ -210,4 +210,120 @@ describe('SimIt End-to-End Pipeline Integration', () => {
     expect(repairResult.code).toContain('safeK');
     expect(mockProvider.generateSimulation).toHaveBeenCalled();
   });
+
+  it('Phase 2: Decoupled reasoning tags separates mathematical thinking from executable code', async () => {
+    const rawModelOutput = `
+<simulation_thinking>
+1. Model: Damped harmonic oscillator with equation d2x/dt2 + 2*gamma*dx/dt + omega0^2*x = 0.
+2. Coordinates: Dynamic canvas with dimensions 420x500.
+3. Parameters: gamma (damping ratio) and omega (frequency).
+</simulation_thinking>
+<simulation_code>
+export default {
+  title: "Damped Harmonic Oscillator",
+  description: "Phase space exploration",
+  parameters: [
+    { id: "gamma", label: "Damping (γ)", type: "slider", min: 0.0, max: 2.0, step: 0.1, default: 0.2 },
+    { id: "omega", label: "Natural Frequency (ω)", type: "slider", min: 0.5, max: 5.0, step: 0.5, default: 2.0 }
+  ],
+  init(container, params) {
+    this.canvas = document.createElement('canvas');
+    this.canvas.width = container.clientWidth || 420;
+    this.canvas.height = container.clientHeight || 500;
+    container.appendChild(this.canvas);
+  },
+  update(params) {
+    this.decay = Math.exp(-params.gamma);
+  },
+  destroy() {}
+};
+</simulation_code>
+    `;
+
+    const mockProvider: IModelProvider = {
+      type: 'anthropic',
+      isLocal: false,
+      isAvailable: async () => true,
+      generateSimulation: vi.fn().mockResolvedValue({
+        rawCode: rawModelOutput,
+        provider: 'anthropic',
+        modelName: 'claude-3-5-sonnet-20241022',
+        durationMs: 800
+      })
+    };
+
+    const res = await mockProvider.generateSimulation({
+      systemPrompt: 'System',
+      userPrompt: 'User'
+    });
+
+    const parsed = (await import('../src/runtime/preflight')).extractSimulationTags(res.rawCode);
+    expect(parsed.thinkingTrace).toContain('Damped harmonic oscillator');
+    expect(parsed.code).toContain('export default {');
+    expect(parsed.code).not.toContain('<simulation_thinking>');
+    expect(parsed.code).not.toContain('<simulation_code>');
+
+    // Validate smoke test passes
+    const smokeRes = await runPreFlightSmokeTest({
+      type: 'PREFLIGHT_TEST_REQUEST',
+      requestId: 'req-tags',
+      rawCode: parsed.code,
+      timeoutMs: 100
+    }, document.createElement('div'));
+
+    expect(smokeRes.status).toBe('ok');
+    if (smokeRes.status === 'ok') {
+      expect(smokeRes.parameters?.length).toBe(2);
+    }
+  });
+
+  it('Phase 2: Archetype triage routes qualitative text to Concept DAG without meaningless motion', async () => {
+    const { classifyArchetype, buildConceptDagModule } = await import('../src/runtime/triage');
+
+    const qualitativeContext = {
+      harvestId: 'h-arch',
+      timestamp: new Date().toISOString(),
+      selection: {
+        selectedText: 'The Transformer model architecture is composed of an Encoder stack and a Decoder stack. The Encoder maps input tokens to representations.',
+        characterCount: 130,
+        sourceUrl: 'https://arxiv.org/abs/1706.03762',
+        documentTitle: 'Attention Is All You Need'
+      },
+      mathSnippets: [],
+      domContext: {
+        nearestHeading: 'Model Architecture',
+        headingLevel: 'H2',
+        caption: null,
+        paragraphSnippet: 'The Transformer architecture consists of...'
+      }
+    };
+
+    const classification = classifyArchetype(qualitativeContext);
+    expect(classification.archetype).toBe('concept_dag');
+    expect(classification.isSimulatable).toBe(false);
+
+    // Build structured fallback
+    const dagModule = buildConceptDagModule({
+      title: 'Transformer Architecture',
+      summary: 'Hierarchical decomposition of the Transformer',
+      nodes: [
+        { id: 'transformer', label: 'Transformer', description: 'Overall network' },
+        { id: 'encoder', label: 'Encoder', description: 'Input stack' },
+        { id: 'decoder', label: 'Decoder', description: 'Output stack' }
+      ],
+      edges: [
+        { id: 'e1', source: 'transformer', target: 'encoder', relationship: 'produces' },
+        { id: 'e2', source: 'transformer', target: 'decoder', relationship: 'produces' }
+      ]
+    });
+
+    expect(dagModule.title).toBe('Transformer Architecture');
+    expect(dagModule.parameters[0].id).toBe('layout');
+
+    const container = document.createElement('div');
+    dagModule.init(container, { layout: 'breadthfirst' });
+    expect(container.innerHTML).toContain('cy-root');
+    expect(container.innerHTML).toContain('Interactive Concept DAG');
+  });
 });
+
