@@ -16,6 +16,9 @@ This document serves as the single source of truth and registry for all living t
 | [Archetype Triage & Fallback Modalities](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/archetype_triage.md) | Archetype Deduction & Triage | Approved | Upfront viability classification (5 canonical archetypes), "No Meaningless Motion" invariant, Cytoscape Concept DAGs, and interactive Socratic Breakdown chips. |
 | [Agent Loop & Self-Repair](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/agent_loop.md) | Code Generation & Repair | Approved | Autonomous generation loop, decoupled reasoning tags (`<simulation_thinking>` / `<simulation_code>`), explicit viewport injection, context rolling compactor, and dual-track evolution. |
 | [ATIF & Simulation Export](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/atif_specification.md) | Telemetry & Export | Approved | Standalone HTML exporter with inlined declarative libraries, and Agent Trajectory Interchange Format (`.atif.json`) schema with reasoning traces and archetype triage. |
+| [Conversational Evolution & Refinement](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/conversational_evolution.md) | Conversational Evolution & Triage | Approved | Dual-track evolution (pre-computed chips + refinement chat), zero-latency parametric triage (0ms LLM overhead), and structured code evolution. |
+| [Session Memory & Context Rolling](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/session_memory.md) | Client Storage & State Stack | Approved | $0 infrastructure IndexedDB session persistence (`simit_db`), immutable version stack (`v1 -> v2 -> v3`), 1-click state rollback, and 4-tier context rolling compactor (< 2,500 token ceiling). |
+| [Hybrid Multi-Model Routing](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/model_routing.md) | Model Orchestration & Tiers | Approved | Two-tier model topology (Tier 1 on-device Gemini Nano vs Tier 2 BYOK frontier cloud), algorithmic complexity assessment, and 1-click cloud escalation. |
 
 ---
 
@@ -28,6 +31,9 @@ Domain types are centrally defined and strongly typed in TypeScript under [`src/
 - [`src/types/simulation.ts`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/simulation.ts): `simEngine` module lifecycle, declarative runtime contracts, and dynamic parameter schemas.
 - [`src/types/archetype.ts`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/archetype.ts): Archetype classification, Concept DAG schemas, Socratic breakdown models, and triage prompts.
 - [`src/types/atif.ts`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/atif.ts): ATIF trajectory steps, metadata, thinking traces, and benchmarking schema.
+- [`src/types/evolution.ts`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/evolution.ts): Evolution chips, natural language refinement intents, conversational turns, and parametric vs. structural triage.
+- [`src/types/session.ts`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/session.ts): IndexedDB session/version schema, immutable version stack, rollback contracts, and context compactor models.
+- [`src/types/routing.ts`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/routing.ts): Two-tier model routing, mathematical complexity assessment, and 1-click cloud escalation contracts.
 
 ---
 

@@ -148,3 +148,45 @@ export interface PromptApiGenerateResponse {
   errorMessage?: string;
 }
 
+// ==========================================
+// 6. Conversational Evolution & Escalation (Phase 3)
+// ==========================================
+
+export interface EvolutionRequestMessage {
+  type: 'EVOLUTION_REQUEST';
+  sessionId: string;
+  currentCode: string;
+  userMessage?: string;
+  chipId?: string;
+  activeParams: ParameterState;
+}
+
+export interface EvolutionResponseMessage {
+  type: 'EVOLUTION_RESPONSE';
+  status: 'ok' | 'error';
+  intentType: 'parametric_tweak' | 'structural_evolution' | 'reset_state';
+  appliedParams?: ParameterState;
+  evolvedCode?: string;
+  parameters?: ParameterDefinition[];
+  suggestedChips?: any[];
+  errorMessage?: string;
+}
+
+export interface CloudEscalationRequestMessage {
+  type: 'CLOUD_ESCALATION_REQUEST';
+  sessionId: string;
+  currentCode: string;
+  selectedText: string;
+  mathSnippet?: string;
+}
+
+export interface CloudEscalationResponseMessage {
+  type: 'CLOUD_ESCALATION_RESPONSE';
+  status: 'ok' | 'error';
+  evolvedCode?: string;
+  parameters?: ParameterDefinition[];
+  provider?: string;
+  modelName?: string;
+  errorMessage?: string;
+}
+

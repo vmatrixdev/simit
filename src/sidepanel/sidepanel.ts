@@ -7,11 +7,17 @@ import {
   HostToSandboxMessage,
   SandboxToHostMessage,
   SandboxInitSimulationMessage,
-  SandboxUpdateParametersMessage
+  SandboxUpdateParametersMessage,
+  EvolutionRequestMessage,
+  EvolutionResponseMessage,
+  CloudEscalationRequestMessage,
+  CloudEscalationResponseMessage
 } from '../types/ipc';
 import { ParameterDefinition, ParameterState } from '../types/simulation';
 import { AtifTrajectory } from '../types/atif';
 import { BYOKStorageSettings, ProviderType } from '../types/models';
+import { EvolutionChip } from '../types/evolution';
+import { RoutingDecision } from '../types/routing';
 import {
   loadBYOKSettings,
   saveBYOKSettings,
@@ -35,6 +41,19 @@ const simDesc = document.getElementById('sim-desc') as HTMLElement;
 const sandboxIframe = document.getElementById('sandbox-iframe') as HTMLIFrameElement;
 const controlsList = document.getElementById('controls-list') as HTMLElement;
 const btnResetParams = document.getElementById('btn-reset-params') as HTMLButtonElement;
+
+// Phase 3 UI Elements
+const versionScrubber = document.getElementById('version-scrubber') as HTMLElement;
+const btnCloudEscalate = document.getElementById('btn-cloud-escalate') as HTMLButtonElement;
+const cloudEscalateText = document.getElementById('cloud-escalate-text') as HTMLElement;
+
+const evolutionChipsDock = document.getElementById('evolution-chips-dock') as HTMLElement;
+const evolutionChipsList = document.getElementById('evolution-chips-list') as HTMLElement;
+
+const refinementDock = document.getElementById('refinement-dock') as HTMLElement;
+const refinementInput = document.getElementById('refinement-input') as HTMLInputElement;
+const btnRefinementSend = document.getElementById('btn-refinement-send') as HTMLButtonElement;
+const refinementStatus = document.getElementById('refinement-status') as HTMLElement;
 
 // Repair Icon
 const btnRepair = document.getElementById('btn-repair') as HTMLButtonElement;
@@ -60,12 +79,17 @@ const btnTestConnection = document.getElementById('btn-test-connection') as HTML
 const settingsStatusMsg = document.getElementById('settings-status-msg') as HTMLElement;
 
 // Active Session Cache
+let activeSessionId: string = '';
+let activeVersionIndex: number = 1;
+let currentVersions: { id: string; versionIndex: number; versionLabel: string }[] = [];
+let currentEvolutionChips: EvolutionChip[] = [];
 let activeCode: string = '';
 let activeParameters: ParameterDefinition[] = [];
 let currentParamsState: ParameterState = {};
 let lastRuntimeError: { message: string; stack?: string } | null = null;
 let currentAtifTrajectory: AtifTrajectory | null = null;
 let currentByokSettings: BYOKStorageSettings = DEFAULT_BYOK_SETTINGS;
+let activeRoutingDecision: RoutingDecision | null = null;
 
 function setViewState(view: 'empty' | 'loading' | 'simulation' | 'error') {
   stateEmpty.style.display = view === 'empty' ? 'flex' : 'none';
@@ -292,6 +316,38 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
           simCodePreview.textContent = activeCode;
         }
         initSimulationInIframe(message.code, message.initialParams);
+
+        if (message.parameters) {
+          activeParameters = message.parameters;
+        }
+
+        // Phase 3: Session & Version tracking
+        if (message.sessionId) {
+          activeSessionId = message.sessionId;
+        }
+        if (message.versionIndex) {
+          activeVersionIndex = message.versionIndex;
+          if (!currentVersions.some((v) => v.versionIndex === message.versionIndex)) {
+            currentVersions.push({
+              id: `ver_v${message.versionIndex}`,
+              versionIndex: message.versionIndex,
+              versionLabel: message.versionLabel || `v${message.versionIndex}`
+            });
+          }
+          renderVersionScrubber();
+        }
+
+        // Phase 3: Pre-computed Evolution Chips
+        if (message.evolutionChips && message.evolutionChips.length > 0) {
+          currentEvolutionChips = message.evolutionChips;
+          renderEvolutionChips(currentEvolutionChips);
+        }
+
+        // Phase 3: Cloud Escalation Badge
+        if (message.routingDecision) {
+          activeRoutingDecision = message.routingDecision;
+          renderCloudEscalation(message.routingDecision);
+        }
 
         const simVerifyingBanner = document.getElementById('sim-verifying-banner');
         if (message.isOptimistic) {
@@ -608,3 +664,355 @@ function escapeHtml(str: string): string {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
+
+// ====================================================
+// Phase 3: Version Scrubber, Chips, Chat & Escalation
+// ====================================================
+
+/**
+ * Renders the version scrubber pills (v1, v2, v3...) with active state and 1-click rollback
+ */
+function renderVersionScrubber() {
+  if (!versionScrubber) return;
+  if (currentVersions.length <= 1) {
+    versionScrubber.style.display = 'none';
+    return;
+  }
+
+  versionScrubber.style.display = 'flex';
+  versionScrubber.innerHTML = '';
+
+  for (const v of currentVersions) {
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = `version-pill ${v.versionIndex === activeVersionIndex ? 'active' : ''}`;
+    pill.textContent = v.versionLabel;
+    pill.title = `Rollback to ${v.versionLabel}`;
+
+    pill.addEventListener('click', () => {
+      handleVersionRollback(v.id, v.versionIndex);
+    });
+
+    versionScrubber.appendChild(pill);
+  }
+}
+
+function postToSandbox(msg: HostToSandboxMessage) {
+  if (sandboxIframe && sandboxIframe.contentWindow) {
+    sandboxIframe.contentWindow.postMessage(msg, '*');
+  }
+}
+
+/**
+ * Handles 1-click state rollback (0 network calls)
+ */
+async function handleVersionRollback(versionId: string, versionIndex: number) {
+  if (versionIndex === activeVersionIndex) return;
+
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+    chrome.runtime.sendMessage(
+      {
+        type: 'VERSION_ROLLBACK_REQUEST',
+        sessionId: activeSessionId,
+        targetVersionId: versionId
+      },
+      (res: any) => {
+        if (res && res.status === 'ok' && res.version) {
+          activeVersionIndex = versionIndex;
+          activeCode = res.version.code;
+          activeParameters = res.version.parameters || [];
+          currentParamsState = res.version.parameterState || {};
+
+          initSimulationInIframe(activeCode, currentParamsState);
+          renderControlsDock(activeParameters, currentParamsState);
+          renderVersionScrubber();
+
+          const simCodePreview = document.getElementById('sim-code-preview');
+          if (simCodePreview) {
+            simCodePreview.textContent = activeCode;
+          }
+        }
+      }
+    );
+  }
+}
+
+/**
+ * Renders pre-computed evolution chips (max 4 visible)
+ */
+function renderEvolutionChips(chips: EvolutionChip[]) {
+  if (!evolutionChipsDock || !evolutionChipsList) return;
+  if (!chips || chips.length === 0) {
+    evolutionChipsDock.style.display = 'none';
+    return;
+  }
+
+  evolutionChipsDock.style.display = 'block';
+  evolutionChipsList.innerHTML = '';
+
+  for (const chip of chips) {
+    const chipBtn = document.createElement('button');
+    chipBtn.type = 'button';
+    chipBtn.className = `chip-btn ${chip.actionType === 'parameter_preset' ? 'param-preset' : 'structural'}`;
+    chipBtn.textContent = chip.label;
+    if (chip.description || chip.rationale) {
+      chipBtn.title = chip.description || chip.rationale || '';
+    }
+
+    chipBtn.addEventListener('click', () => {
+      handleChipClick(chip);
+    });
+
+    evolutionChipsList.appendChild(chipBtn);
+  }
+}
+
+/**
+ * Handles clicks on evolution chips
+ */
+function handleChipClick(chip: EvolutionChip) {
+  if (chip.actionType === 'parameter_preset') {
+    // Zero-latency direct parameter update (0ms LLM overhead)
+    if (chip.targetParamId && chip.presetValue !== undefined) {
+      currentParamsState[chip.targetParamId] = chip.presetValue;
+    }
+    if (chip.parameterUpdates) {
+      Object.assign(currentParamsState, chip.parameterUpdates);
+    }
+
+    // Post directly to sandboxed iframe
+    postToSandbox({
+      type: 'SANDBOX_UPDATE_PARAMETERS',
+      params: currentParamsState
+    });
+
+    renderControlsDock(activeParameters, currentParamsState);
+
+    if (refinementStatus) {
+      refinementStatus.style.display = 'block';
+      refinementStatus.style.color = '#10b981';
+      refinementStatus.textContent = `⚡ Applied preset: ${chip.label} (0ms LLM overhead)`;
+      setTimeout(() => {
+        if (refinementStatus) refinementStatus.style.display = 'none';
+      }, 3000);
+    }
+    return;
+  }
+
+  if (chip.actionType === 'view_mode') {
+    // Reset parameters to defaults
+    const defaultParams: ParameterState = {};
+    for (const p of activeParameters) {
+      defaultParams[p.id] = (p as any).default ?? 0;
+    }
+    currentParamsState = defaultParams;
+    postToSandbox({
+      type: 'SANDBOX_UPDATE_PARAMETERS',
+      params: currentParamsState
+    });
+    renderControlsDock(activeParameters, currentParamsState);
+    return;
+  }
+
+  if (chip.actionType === 'structural_refinement') {
+    executeRefinement(chip.refinementPrompt || chip.label, chip.id);
+  }
+}
+
+/**
+ * Executes a conversational refinement (chat or chip) with intent triage
+ */
+function executeRefinement(userMessage: string, chipId?: string) {
+  if (!userMessage.trim()) return;
+
+  if (refinementStatus) {
+    refinementStatus.style.display = 'block';
+    refinementStatus.style.color = '#38bdf8';
+    refinementStatus.textContent = '⚡ Analyzing refinement intent...';
+  }
+
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+    const req: EvolutionRequestMessage = {
+      type: 'EVOLUTION_REQUEST',
+      sessionId: activeSessionId,
+      currentCode: activeCode,
+      userMessage,
+      chipId,
+      activeParams: currentParamsState
+    };
+
+    chrome.runtime.sendMessage(req, (res: EvolutionResponseMessage) => {
+      if (!res) {
+        if (refinementStatus) {
+          refinementStatus.style.color = '#ef4444';
+          refinementStatus.textContent = 'No response received from background orchestrator.';
+        }
+        return;
+      }
+
+      if (res.status === 'ok') {
+        if (res.intentType === 'parametric_tweak' && res.appliedParams) {
+          // Zero-latency update: 0ms LLM overhead
+          Object.assign(currentParamsState, res.appliedParams);
+          postToSandbox({
+            type: 'SANDBOX_UPDATE_PARAMETERS',
+            params: currentParamsState
+          });
+          renderControlsDock(activeParameters, currentParamsState);
+
+          if (refinementStatus) {
+            refinementStatus.style.color = '#10b981';
+            refinementStatus.textContent = '⚡ Applied parameter tweak directly (0ms LLM overhead).';
+          }
+          if (refinementInput) refinementInput.value = '';
+          return;
+        }
+
+        if (res.intentType === 'reset_state' && res.appliedParams) {
+          currentParamsState = res.appliedParams;
+          postToSandbox({
+            type: 'SANDBOX_UPDATE_PARAMETERS',
+            params: currentParamsState
+          });
+          renderControlsDock(activeParameters, currentParamsState);
+
+          if (refinementStatus) {
+            refinementStatus.style.color = '#10b981';
+            refinementStatus.textContent = '🔄 Parameters reset to defaults.';
+          }
+          if (refinementInput) refinementInput.value = '';
+          return;
+        }
+
+        if (res.intentType === 'structural_evolution' && res.evolvedCode) {
+          activeCode = res.evolvedCode;
+          if (res.parameters) {
+            activeParameters = res.parameters;
+          }
+
+          initSimulationInIframe(activeCode, currentParamsState);
+          renderControlsDock(activeParameters, currentParamsState);
+
+          activeVersionIndex++;
+          currentVersions.push({
+            id: `ver_v${activeVersionIndex}`,
+            versionIndex: activeVersionIndex,
+            versionLabel: `v${activeVersionIndex}`
+          });
+          renderVersionScrubber();
+
+          if (res.suggestedChips) {
+            currentEvolutionChips = res.suggestedChips;
+            renderEvolutionChips(currentEvolutionChips);
+          }
+
+          const simCodePreview = document.getElementById('sim-code-preview');
+          if (simCodePreview) simCodePreview.textContent = activeCode;
+
+          if (refinementStatus) {
+            refinementStatus.style.color = '#10b981';
+            refinementStatus.textContent = `✨ Evolved to v${activeVersionIndex} successfully!`;
+          }
+          if (refinementInput) refinementInput.value = '';
+          return;
+        }
+      }
+
+      if (refinementStatus) {
+        refinementStatus.style.color = '#ef4444';
+        refinementStatus.textContent = `⚠️ Refinement failed: ${res.errorMessage || 'Unknown error'}`;
+      }
+    });
+  }
+}
+
+/**
+ * Configures the 1-click cloud escalation button
+ */
+function renderCloudEscalation(decision: RoutingDecision) {
+  if (!btnCloudEscalate) return;
+
+  if (decision.canEscalateToCloud) {
+    btnCloudEscalate.style.display = 'inline-flex';
+    if (cloudEscalateText) {
+      cloudEscalateText.textContent = decision.escalationBadgeText || '⚡ Escalate to Cloud';
+    }
+  } else {
+    btnCloudEscalate.style.display = 'none';
+  }
+}
+
+/**
+ * Handles 1-click cloud escalation click
+ */
+function handleCloudEscalateClick() {
+  if (!activeCode) return;
+
+  if (refinementStatus) {
+    refinementStatus.style.display = 'block';
+    refinementStatus.style.color = '#f59e0b';
+    refinementStatus.textContent = '⚡ Escalating simulation to frontier cloud model...';
+  }
+  setStatusPill('Synthesizing');
+
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+    const req: CloudEscalationRequestMessage = {
+      type: 'CLOUD_ESCALATION_REQUEST',
+      sessionId: activeSessionId,
+      currentCode: activeCode,
+      selectedText: simTitle.textContent || ''
+    };
+
+    chrome.runtime.sendMessage(req, (res: CloudEscalationResponseMessage) => {
+      if (res && res.status === 'ok' && res.evolvedCode) {
+        activeCode = res.evolvedCode;
+        if (res.parameters) {
+          activeParameters = res.parameters;
+        }
+
+        initSimulationInIframe(activeCode, currentParamsState);
+        renderControlsDock(activeParameters, currentParamsState);
+
+        activeVersionIndex++;
+        currentVersions.push({
+          id: `ver_v${activeVersionIndex}`,
+          versionIndex: activeVersionIndex,
+          versionLabel: `v${activeVersionIndex}`
+        });
+        renderVersionScrubber();
+
+        const simCodePreview = document.getElementById('sim-code-preview');
+        if (simCodePreview) simCodePreview.textContent = activeCode;
+
+        setStatusPill('Active');
+        if (refinementStatus) {
+          refinementStatus.style.color = '#10b981';
+          refinementStatus.textContent = `🚀 Frontier model generated v${activeVersionIndex} (${res.modelName || res.provider})!`;
+        }
+      } else {
+        setStatusPill('Active');
+        if (refinementStatus) {
+          refinementStatus.style.color = '#ef4444';
+          refinementStatus.textContent = `⚠️ Cloud escalation failed: ${res?.errorMessage || 'Check API key in Settings'}`;
+        }
+      }
+    });
+  }
+}
+
+
+// Event Listeners for Refinement Chat & Cloud Escalation
+btnRefinementSend?.addEventListener('click', () => {
+  if (refinementInput) {
+    executeRefinement(refinementInput.value);
+  }
+});
+
+refinementInput?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    executeRefinement(refinementInput.value);
+  }
+});
+
+btnCloudEscalate?.addEventListener('click', handleCloudEscalateClick);

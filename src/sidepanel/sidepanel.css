@@ -533,3 +533,175 @@ select {
   font-size: 11px;
   cursor: pointer;
 }
+
+/* ====================================================
+   Phase 3: Version Scrubber, Escalation, Chips & Chat
+   ==================================================== */
+
+/* Version Scrubber */
+.version-scrubber {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  padding: 2px 4px;
+  border-radius: 12px;
+}
+
+.version-pill {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.version-pill:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.version-pill.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+}
+
+/* Cloud Escalation Button */
+.btn-escalate {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(234, 88, 12, 0.2));
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+}
+
+.btn-escalate:hover {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(234, 88, 12, 0.35));
+  border-color: #f59e0b;
+  transform: translateY(-1px);
+}
+
+/* Evolution Chips Dock */
+.chips-dock {
+  background: rgba(17, 24, 39, 0.6);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+
+.chips-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.chips-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.chip-btn:hover {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: var(--accent);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.chip-btn.param-preset {
+  border-left: 2px solid #10b981;
+}
+
+.chip-btn.structural {
+  border-left: 2px solid #8b5cf6;
+}
+
+/* Refinement Chat Dock */
+.refinement-dock {
+  margin-top: 10px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+}
+
+.refinement-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.refinement-input-row input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+  padding: 7px 10px;
+  font-size: 12px;
+  color: #fff;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.refinement-input-row input:focus {
+  border-color: var(--accent);
+}
+
+.refinement-input-row button {
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: #fff;
+  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.refinement-input-row button:hover {
+  background: #4f46e5;
+}
+
+.refinement-input-row button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.refinement-status {
+  margin-top: 5px;
+  font-size: 11px;
+  color: #38bdf8;
+  text-align: left;
+}

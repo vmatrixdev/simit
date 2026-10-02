@@ -55,7 +55,7 @@ flowchart LR
 - **M7: Reasoning Decoupling & Explicit Viewport Injection**: Structured prompt pipeline using `<simulation_thinking>` scratchpad and `<simulation_code>` blocks alongside exact container pixel bounds.
 - **M8: Archetype Triage & Concept Fallbacks**: Upfront viability classification routing non-simulatable text to Cytoscape concept DAGs or Socratic breakdowns without meaningless motion.
 
-### Phase 3: Conversational Evolution, Persistent Memory & Multi-Model Routing (Planned)
+### Phase 3: Conversational Evolution, Persistent Memory & Multi-Model Routing (Completed)
 - **M9: Dual-Track Evolution & Zero-Latency Parametric Tweaks**: Pre-computed evolution chips and refinement chat bar with direct Tweakpane updates bypassing LLM calls.
 - **M10: Rolling Context Window & IndexedDB Session Version Stack**: Token-efficient context compactor with static paper anchor and 2-turn window, paired with IndexedDB persistence and `v1 -> v2 -> v3` state revert.
 - **M11: Hybrid Multi-Model Routing & Cloud Escalation**: Intelligent model routing delegating quick triage and bound extraction to Gemini Nano before escalating to frontier models for complex dynamics.
@@ -74,6 +74,6 @@ flowchart LR
 | **M6: Declarative Runtime Stack** | Tweakpane v4, functionPlot v1, Cytoscape v3 bundled in sandbox | Local / BYOK | $0.00 | **Completed** |
 | **M7: Reasoning Decoupling & Viewport** | `<simulation_thinking>` + `<simulation_code>` tags, injected pixel dimensions | Local / BYOK | $0.00 | **Completed** |
 | **M8: Archetype Triage & Fallbacks** | Upfront viability triage, concept DAG & Socratic chip fallbacks | Local / BYOK | $0.00 | **Completed** |
-| **M9: Dual-Track Evolution** | Pre-computed evolution chips, refinement chat, direct Tweakpane updates | Local / BYOK | $0.00 | Planned |
-| **M10: Context Compactor & Session Stack** | Sliding 2-turn window + code compaction, IndexedDB persistence & revert | Local / BYOK | $0.00 | Planned |
-| **M11: Multi-Model Orchestration** | Autonomous escalation from Gemini Nano triage to frontier models | Hybrid Routing | Configurable | Planned |
+| **M9: Dual-Track Evolution** | Pre-computed evolution chips, refinement chat, direct Tweakpane updates | Local / BYOK | $0.00 | **Completed** |
+| **M10: Context Compactor & Session Stack** | Sliding 2-turn window + code compaction, IndexedDB persistence & revert | Local / BYOK | $0.00 | **Completed** |
+| **M11: Multi-Model Orchestration** | Autonomous escalation from Gemini Nano triage to frontier models | Hybrid Routing | Configurable | **Completed** |

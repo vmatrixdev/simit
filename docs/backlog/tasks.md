@@ -114,20 +114,24 @@ flowchart TD
 
 ---
 
-## Phase 3 Execution Checklist (Status: Queued)
+## Phase 3 Execution Checklist (Status: Completed)
 
 ### Step 11: Conversational Dual-Track Evolution
-- [ ] Implement pre-computed evolution chips (`[+ Add Temperature Scaling]`, `[Show Phase Boundary]`, etc.) in `sidepanel.html` conforming to [docs/specs/agent_loop.md#81-dual-track-evolution](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/agent_loop.md#81-dual-track-evolution).
-- [ ] Implement natural language refinement chat bar in `sidepanel.html` conforming to [docs/specs/architecture.md#36-progressive-complexity--conversational-iteration](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/architecture.md#36-progressive-complexity--conversational-iteration).
-- [ ] Wire evolution chip clicks and chat submissions to background refinement pipeline conforming to [docs/specs/architecture.md#2-end-to-end-execution-flow](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/architecture.md#2-end-to-end-execution-flow).
+- [x] Implement pre-computed evolution chips (`[+ Add Temperature Scaling]`, `[Show Phase Boundary]`, etc.) in `sidepanel.html` conforming to [docs/specs/conversational_evolution.md#31-pre-computed-evolution-chips-generation-schema](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/conversational_evolution.md#31-pre-computed-evolution-chips-generation-schema).
+- [x] Implement natural language refinement chat bar in `sidepanel.html` conforming to [docs/specs/conversational_evolution.md#1-overview--business-objectives](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/conversational_evolution.md#1-overview--business-objectives).
+- [x] Implement zero-latency parametric triage routing slider changes directly to `Tweakpane.updateParams()` (0ms LLM overhead) conforming to [docs/specs/conversational_evolution.md#4-domain-invariants--guardrails](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/conversational_evolution.md#4-domain-invariants--guardrails).
+- [x] Wire evolution chip clicks and chat submissions to background refinement pipeline conforming to [docs/specs/conversational_evolution.md#2-dual-track-interaction--triage-architecture](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/conversational_evolution.md#2-dual-track-interaction--triage-architecture).
 
 ### Step 12: Context Rolling Compactor & IndexedDB Session Version Stack
-- [ ] Implement Context Rolling Compactor retaining static paper anchor, single latest `<simulation_code>` snapshot, and sliding 2-turn window conforming to [docs/specs/agent_loop.md#7-context-rolling-for-infinite-evolution](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/agent_loop.md#7-context-rolling-for-infinite-evolution).
-- [ ] Implement client-side IndexedDB persistence layer (`simit_sessions`) storing version snapshots (`v1 -> v2 -> v3`) and parameter states conforming to [docs/specs/agent_loop.md#82-client-side-session-version-stack-indexeddb](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/agent_loop.md#82-client-side-session-version-stack-indexeddb).
-- [ ] Add version scrubber (`v1`, `v2`, `v3`) in Side Panel header with 1-click state rollback conforming to [docs/specs/sandbox_ipc.md#5-behavioral-acceptance-matrix](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/sandbox_ipc.md#5-behavioral-acceptance-matrix).
+- [x] Implement Context Rolling Compactor retaining static paper anchor, single latest `<simulation_code>` snapshot, and sliding 2-turn window conforming to [docs/specs/session_memory.md#2-storage-topology--context-rolling-architecture](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/session_memory.md#2-storage-topology--context-rolling-architecture).
+- [x] Implement client-side IndexedDB persistence layer (`simit_db`, `sessions`, `versions`) storing version snapshots (`v1 -> v2 -> v3`) and parameter states conforming to [docs/specs/session_memory.md#31-indexeddb-database-schema-simit_db](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/session_memory.md#31-indexeddb-database-schema-simit_db).
+- [x] Add version scrubber (`v1`, `v2`, `v3`) in Side Panel header with 1-click state rollback conforming to [docs/specs/session_memory.md#4-domain-invariants--guardrails](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/session_memory.md#4-domain-invariants--guardrails).
 
 ### Step 13: Hybrid Multi-Model Routing & Cloud Escalation
-- [ ] Implement autonomous model routing: use local Gemini Nano for instant domain triage and bounds extraction before elevating to frontier models conforming to [docs/specs/architecture.md#1-high-level-architecture-overview](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/architecture.md#1-high-level-architecture-overview).
-- [ ] Add 1-click cloud escalation button in Side Panel header allowing user to re-generate complex simulations with configured frontier models conforming to [docs/specs/architecture.md#32-orchestration--model-provider-layer-backgroundjs](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/architecture.md#32-orchestration--model-provider-layer-backgroundjs).
+- [x] Implement complexity assessor calculating score from mathematical density and discrete state count conforming to [docs/specs/model_routing.md#31-complexity-scoring-heuristic](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/model_routing.md#31-complexity-scoring-heuristic).
+- [x] Implement autonomous model routing: use local Gemini Nano for instant domain triage and bounds extraction before elevating to frontier models conforming to [docs/specs/model_routing.md#2-two-tier-routing--escalation-architecture](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/model_routing.md#2-two-tier-routing--escalation-architecture).
+- [x] Add 1-click cloud escalation button in Side Panel header allowing user to re-generate complex simulations with configured frontier models conforming to [docs/specs/model_routing.md#4-domain-invariants--guardrails](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/model_routing.md#4-domain-invariants--guardrails).
+
+
 
 

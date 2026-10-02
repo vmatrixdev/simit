@@ -20,7 +20,16 @@
         <span class="status-pill status-ready" id="status-pill">Ready</span>
       </div>
 
-      <div class="header-right">
+        <!-- Version Scrubber Stack (v1, v2, v3) -->
+        <div class="version-scrubber" id="version-scrubber" style="display: none;">
+          <!-- Dynamically populated version pills -->
+        </div>
+
+        <!-- 1-Click Cloud Escalation Button -->
+        <button class="btn-escalate" id="btn-cloud-escalate" style="display: none;" title="Escalate to frontier model">
+          <span id="cloud-escalate-text">⚡ Escalate to Cloud</span>
+        </button>
+
         <!-- Auto-appearing Repair Icon (🛠️) -->
         <button class="btn-repair" id="btn-repair" style="display: none;" title="An error occurred during interaction. Click to auto-repair.">
           <span class="repair-icon">🛠️</span>
@@ -108,6 +117,14 @@
           <p id="sim-desc">Simulation description will appear here.</p>
         </div>
 
+        <!-- Evolution Chips Dock (Max 4 visible) -->
+        <div class="chips-dock" id="evolution-chips-dock" style="display: none;">
+          <div class="chips-label">✨ Quick Evolutions:</div>
+          <div class="chips-list" id="evolution-chips-list">
+            <!-- Dynamically populated chips -->
+          </div>
+        </div>
+
         <div class="iframe-container">
           <iframe id="sandbox-iframe" src="../sandbox/sandbox.html" sandbox="allow-scripts"></iframe>
         </div>
@@ -120,6 +137,20 @@
           <div class="controls-list" id="controls-list">
             <!-- Dynamic parameter controls will be mounted here -->
           </div>
+        </div>
+
+        <!-- Refinement Chat Bar -->
+        <div class="refinement-dock" id="refinement-dock">
+          <div class="refinement-input-row">
+            <input type="text" id="refinement-input" placeholder="Refine simulation (e.g. 'set tau to 2.5', 'add entropy curve')..." autocomplete="off" />
+            <button id="btn-refinement-send" type="button" title="Send refinement">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </div>
+          <div class="refinement-status" id="refinement-status" style="display: none;"></div>
         </div>
 
         <details class="sim-code-accordion" id="sim-code-accordion" style="margin-top: 12px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 14px; font-size: 12px;">
