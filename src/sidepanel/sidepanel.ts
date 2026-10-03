@@ -90,15 +90,17 @@ export const WELCOME_SIMULATION_CODE = `export default {
   title: "SimIt: Highlight to Interactive Reality",
   description: "Watch a human reader highlight technical text on a webpage and click SimIt. See the agent loop convert it into a live 60 FPS simulation. Pan & zoom across the journey!",
   parameters: [
+    { id: "example", label: "Example Scenario", type: "select", options: ["Auto-Cycle All 3", "1. Duffing Attractor (Math)", "2. Sequence Diagram (Mermaid)", "3. Relational ERD (Schema)"], default: "Auto-Cycle All 3" },
     { id: "viewMode", label: "Camera View", type: "select", options: ["Auto-Tour", "Overview (All)", "1. Boring Webpage", "2. Agent Loop", "3. Live Payoff Sim"], default: "Auto-Tour" },
     { id: "speed", label: "Story Velocity", type: "slider", min: 0.5, max: 2.5, step: 0.1, default: 1.0, unit: "x" },
-    { id: "gamma", label: "Payoff Chaos (γ)", type: "slider", min: 0.1, max: 0.65, step: 0.01, default: 0.37 },
-    { id: "resetJourney", label: "↺ Restart Story", type: "button" }
+    { id: "gamma", label: "Duffing Chaos (γ)", type: "slider", min: 0.1, max: 0.65, step: 0.01, default: 0.37 },
+    { id: "resetJourney", label: "↺ Restart Current Story", type: "button" }
   ],
   init(container, params) {
     this.container = container;
     this.params = { ...params };
     this.viewMode = params.viewMode || "Auto-Tour";
+    this.example = params.example || "Auto-Cycle All 3";
 
     // Virtual world coordinates (widescreen canvas)
     this.worldW = 1080;
@@ -113,15 +115,24 @@ export const WELCOME_SIMULATION_CODE = `export default {
 
     // Timeline state
     this.storyTime = 0;
-    this.loopDuration = 18.0;
+    this.exampleDuration = 14.0;
+    this.totalDuration = 42.0;
 
-    // Duffing oscillator payoff state (Act 3)
+    // Payoff 1: Duffing oscillator state
     this.payoff = {
       x: 0.6,
       v: 0.0,
       t: 0.0,
       history: []
     };
+
+    // Payoff 2: Sequence diagram state
+    this.seqStep = 0;
+    this.seqTimer = 0;
+    this.seqPlaying = true;
+
+    // Payoff 3: ERD state
+    this.erdSelectedTable = null;
 
     // Flowing energy packets between acts
     this.streamPackets = [];
@@ -138,7 +149,7 @@ export const WELCOME_SIMULATION_CODE = `export default {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
 
-    // Pointer event handlers for direct pan, chapter pills, and mass perturbation
+    // Pointer event handlers for direct pan, chapter pills, and interactive payoffs
     canvas.addEventListener('pointerdown', (e) => {
       const rect = canvas.getBoundingClientRect();
       const px = e.clientX - rect.left;
@@ -160,19 +171,82 @@ export const WELCOME_SIMULATION_CODE = `export default {
         }
       }
 
-      // Check if user clicked inside Act 3 simulation to perturb Duffing oscillator
+      // World coordinates calculation
       const worldPx = this.camX + px / this.camZoom;
       const worldPy = (py - Math.max(0, (this.h - this.worldH * this.camZoom) / 2)) / this.camZoom;
-      if (worldPx >= 750 && worldPx <= 1050 && worldPy >= 90 && worldPy <= 350) {
-        const normX = ((worldPx - 900) / 110) * 2.5;
-        const normV = -((worldPy - 220) / 100) * 2.5;
-        this.payoff.x = Math.max(-2.2, Math.min(2.2, normX));
-        this.payoff.v = Math.max(-2.5, Math.min(2.5, normV));
-        this.payoff.history = [];
-        return;
+
+      // Payoff interaction when live (only if world coordinates are in Act 3: x >= 740 && x <= 1060)
+      const currentIdx = this.getCurrentExampleIndex();
+      const localT = this.getLocalTime();
+      const isLive = localT >= 9.8;
+
+      if (isLive && worldPx >= 740 && worldPx <= 1060 && worldPy >= 40 && worldPy <= 490) {
+        // Payoff 1 (Duffing): perturb state
+        if (currentIdx === 0 && worldPx >= 755 && worldPx <= 1045 && worldPy >= 100 && worldPy <= 320) {
+          const normX = ((worldPx - 900) / 110) * 2.4;
+          const normV = -((worldPy - 210) / 95) * 2.5;
+          this.payoff.x = Math.max(-2.2, Math.min(2.2, normX));
+          this.payoff.v = Math.max(-2.5, Math.min(2.5, normV));
+          this.payoff.history = [];
+          return;
+        }
+
+        // Payoff 2 (Sequence Diagram): step controls
+        if (currentIdx === 1) {
+          // Prev Step button: 760-825, y: 430-465
+          if (worldPx >= 760 && worldPx <= 825 && worldPy >= 430 && worldPy <= 465) {
+            this.seqStep = (this.seqStep + 4) % 5;
+            this.seqTimer = 0;
+            return;
+          }
+          // Next Step button: 835-900, y: 430-465
+          if (worldPx >= 835 && worldPx <= 900 && worldPy >= 430 && worldPy <= 465) {
+            this.seqStep = (this.seqStep + 1) % 5;
+            this.seqTimer = 0;
+            return;
+          }
+          // Play/Pause button: 910-975, y: 430-465
+          if (worldPx >= 910 && worldPx <= 975 && worldPy >= 430 && worldPy <= 465) {
+            this.seqPlaying = !this.seqPlaying;
+            return;
+          }
+          // Click on lifeline step lines to jump to that step
+          for (let s = 0; s < 5; s++) {
+            const stepY = 165 + s * 50;
+            if (worldPy >= stepY - 14 && worldPy <= stepY + 14) {
+              this.seqStep = s;
+              this.seqTimer = 0;
+              return;
+            }
+          }
+        }
+
+        // Payoff 3 (ERD): entity table selection
+        if (currentIdx === 2) {
+          // USERS: 765-895, 115-225
+          if (worldPx >= 765 && worldPx <= 895 && worldPy >= 115 && worldPy <= 225) {
+            this.erdSelectedTable = this.erdSelectedTable === 'users' ? null : 'users';
+            return;
+          }
+          // ORDERS: 915-1045, 115-225
+          if (worldPx >= 915 && worldPx <= 1045 && worldPy >= 115 && worldPy <= 225) {
+            this.erdSelectedTable = this.erdSelectedTable === 'orders' ? null : 'orders';
+            return;
+          }
+          // PRODUCTS: 765-895, 265-375
+          if (worldPx >= 765 && worldPx <= 895 && worldPy >= 265 && worldPy <= 375) {
+            this.erdSelectedTable = this.erdSelectedTable === 'products' ? null : 'products';
+            return;
+          }
+          // ORDER_ITEMS: 915-1045, 265-375
+          if (worldPx >= 915 && worldPx <= 1045 && worldPy >= 265 && worldPy <= 375) {
+            this.erdSelectedTable = this.erdSelectedTable === 'order_items' ? null : 'order_items';
+            return;
+          }
+        }
       }
 
-      // Start drag-to-pan across widescreen canvas
+      // Otherwise, start drag-to-pan across widescreen canvas
       this.isDragging = true;
       this.dragStartX = px;
       this.dragStartCamX = this.camX;
@@ -227,9 +301,25 @@ export const WELCOME_SIMULATION_CODE = `export default {
     this.raf = requestAnimationFrame(loop);
   },
 
+  getCurrentExampleIndex() {
+    if (this.example === "1. Duffing Attractor (Math)") return 0;
+    if (this.example === "2. Sequence Diagram (Mermaid)") return 1;
+    if (this.example === "3. Relational ERD (Schema)") return 2;
+    return Math.floor((this.storyTime % this.totalDuration) / this.exampleDuration);
+  },
+
+  getLocalTime() {
+    if (this.example !== "Auto-Cycle All 3") {
+      return this.storyTime % this.exampleDuration;
+    }
+    return (this.storyTime % this.totalDuration) % this.exampleDuration;
+  },
+
   stepSimulation(dt) {
     const spd = this.params.speed || 1.0;
-    this.storyTime = (this.storyTime + dt * spd) % this.loopDuration;
+    this.storyTime += dt * spd;
+    const localT = this.getLocalTime();
+    const exIdx = this.getCurrentExampleIndex();
 
     if (this.userInteractingTimer > 0) {
       this.userInteractingTimer -= dt;
@@ -253,9 +343,9 @@ export const WELCOME_SIMULATION_CODE = `export default {
       // Auto-Tour mode: smoothly glide camera as story unfolds
       this.camTargetZoom = 1.0;
       if (this.userInteractingTimer <= 0) {
-        if (this.storyTime < 6.8) {
+        if (localT < 6.8) {
           this.camTargetX = 0;
-        } else if (this.storyTime < 10.2) {
+        } else if (localT < 9.8) {
           this.camTargetX = Math.min(maxCamX, 360);
         } else {
           this.camTargetX = Math.min(maxCamX, 720);
@@ -267,36 +357,44 @@ export const WELCOME_SIMULATION_CODE = `export default {
     this.camX += (this.camTargetX - this.camX) * Math.min(1.0, dt * 5.0);
     this.camZoom += (this.camTargetZoom - this.camZoom) * Math.min(1.0, dt * 5.0);
 
-    // Duffing chaotic oscillator numerical integration (Act 3 Payoff)
-    // d2x/dt2 + delta*dx/dt - x + x^3 = gamma * cos(omega * t)
-    const delta = 0.25;
-    const gamma = this.params.gamma !== undefined ? this.params.gamma : 0.37;
-    const omega = 1.2;
-    const substeps = 4;
-    const subDt = (dt * spd) / substeps;
+    // Payoff 1 (Duffing Attractor) physics integration
+    if (exIdx === 0 && localT >= 9.8) {
+      const delta = 0.25;
+      const gamma = this.params.gamma !== undefined ? this.params.gamma : 0.37;
+      const omega = 1.2;
+      const substeps = 4;
+      const subDt = (dt * spd) / substeps;
 
-    for (let s = 0; s < substeps; s++) {
-      const force = this.payoff.x - Math.pow(this.payoff.x, 3) - delta * this.payoff.v + gamma * Math.cos(omega * this.payoff.t);
-      this.payoff.v += force * subDt;
-      this.payoff.x += this.payoff.v * subDt;
-      this.payoff.t += subDt;
+      for (let s = 0; s < substeps; s++) {
+        const force = this.payoff.x - Math.pow(this.payoff.x, 3) - delta * this.payoff.v + gamma * Math.cos(omega * this.payoff.t);
+        this.payoff.v += force * subDt;
+        this.payoff.x += this.payoff.v * subDt;
+        this.payoff.t += subDt;
+      }
+
+      this.payoff.history.push({ x: this.payoff.x, v: this.payoff.v });
+      if (this.payoff.history.length > 260) {
+        this.payoff.history.shift();
+      }
     }
 
-    // Record trajectory history
-    this.payoff.history.push({ x: this.payoff.x, v: this.payoff.v });
-    if (this.payoff.history.length > 260) {
-      this.payoff.history.shift();
+    // Payoff 2 (Sequence Diagram) auto-advance when playing
+    if (exIdx === 1 && localT >= 9.8 && this.seqPlaying) {
+      this.seqTimer += dt * spd;
+      if (this.seqTimer >= 1.6) {
+        this.seqTimer = 0;
+        this.seqStep = (this.seqStep + 1) % 5;
+      }
     }
 
-    // Stream energy packets across pipeline during and after harvest
-    if (this.storyTime >= 6.4 && Math.random() < 0.35 * spd) {
+    // Stream energy packets across pipeline during and after harvest (starts at 6.4s)
+    if (localT >= 6.4 && localT < 10.0 && Math.random() < 0.4 * spd) {
       this.streamPackets.push({
-        x: 270,
-        y: 280,
-        stage: 1,
+        x: 330,
+        y: 275,
         progress: 0,
-        speed: (0.45 + Math.random() * 0.4) * spd,
-        color: Math.random() > 0.5 ? '#38bdf8' : '#a855f7'
+        speed: (0.45 + Math.random() * 0.35) * spd,
+        color: exIdx === 0 ? '#38bdf8' : (exIdx === 1 ? '#a855f7' : '#10b981')
       });
     }
 
@@ -315,12 +413,15 @@ export const WELCOME_SIMULATION_CODE = `export default {
 
     ctx.clearRect(0, 0, w, h);
 
-    // Subtle starry space background
+    // Deep cosmic dark background
     const bgGrad = ctx.createLinearGradient(0, 0, w, h);
     bgGrad.addColorStop(0, '#040714');
     bgGrad.addColorStop(1, '#02040a');
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, w, h);
+
+    const currentIdx = this.getCurrentExampleIndex();
+    const localT = this.getLocalTime();
 
     // Apply Virtual Camera Transform
     ctx.save();
@@ -329,24 +430,24 @@ export const WELCOME_SIMULATION_CODE = `export default {
     ctx.scale(this.camZoom, this.camZoom);
 
     // Draw panoramic grid & connecting conduits
-    this.drawPanoramicConduits(ctx);
+    this.drawPanoramicConduits(ctx, currentIdx);
 
     // ACT 1: The Boring Webpage & Human Reader (x: 20 to 340)
-    this.drawAct1BoringWebpage(ctx);
+    this.drawAct1BoringWebpage(ctx, currentIdx, localT);
 
     // ACT 2: The Agent Loop Pipeline (x: 360 to 720)
-    this.drawAct2AgentLoop(ctx);
+    this.drawAct2AgentLoop(ctx, currentIdx, localT);
 
     // ACT 3: The Live Payoff Simulation (x: 740 to 1060)
-    this.drawAct3PayoffSimulation(ctx);
+    this.drawAct3PayoffSimulation(ctx, currentIdx, localT);
 
     ctx.restore();
 
     // Draw Screen-Space HUD (pinned to view for immediate feedback)
-    this.drawScreenHUD(ctx);
+    this.drawScreenHUD(ctx, currentIdx);
   },
 
-  drawPanoramicConduits(ctx) {
+  drawPanoramicConduits(ctx, exIdx) {
     // Subtle background circuit grid
     ctx.strokeStyle = 'rgba(56, 189, 248, 0.04)';
     ctx.lineWidth = 1;
@@ -358,7 +459,8 @@ export const WELCOME_SIMULATION_CODE = `export default {
     }
 
     // Glowing data conduit connecting Act 1 -> Act 2 -> Act 3
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.2)';
+    const conduitColor = exIdx === 0 ? 'rgba(56, 189, 248, 0.25)' : (exIdx === 1 ? 'rgba(168, 85, 247, 0.25)' : 'rgba(16, 185, 129, 0.25)');
+    ctx.strokeStyle = conduitColor;
     ctx.lineWidth = 2.5;
     ctx.setLineDash([4, 6]);
     ctx.beginPath();
@@ -397,9 +499,7 @@ export const WELCOME_SIMULATION_CODE = `export default {
     });
   },
 
-  drawAct1BoringWebpage(ctx) {
-    const t = this.storyTime;
-
+  drawAct1BoringWebpage(ctx, exIdx, t) {
     // Browser Window Container
     ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
     ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
@@ -410,7 +510,7 @@ export const WELCOME_SIMULATION_CODE = `export default {
     ctx.fillStyle = 'rgba(30, 41, 59, 0.8)';
     this.roundRect(ctx, 20, 40, 320, 42, 12, true, false);
 
-    // Window controls dots (macOS style)
+    // macOS Style Dots
     ctx.fillStyle = '#ef4444';
     ctx.beginPath(); ctx.arc(36, 61, 4.5, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#f59e0b';
@@ -423,76 +523,150 @@ export const WELCOME_SIMULATION_CODE = `export default {
     this.roundRect(ctx, 80, 50, 245, 22, 5, true, false);
     ctx.fillStyle = '#94a3b8';
     ctx.font = '10px ui-monospace, monospace';
-    ctx.fillText('🔒 arxiv.org/abs/2403.01892', 90, 65);
 
-    // Document Content Canvas Area (Academic Paper)
+    const urlText = exIdx === 0
+      ? '🔒 arxiv.org/abs/2403.01892'
+      : (exIdx === 1 ? '🔒 docs.auth-service.dev/oauth2' : '🔒 wiki.internal/schema-v3');
+    ctx.fillText(urlText, 90, 65);
+
+    // Paper Area Clip
     ctx.save();
     ctx.beginPath();
     ctx.rect(21, 82, 318, 407);
     ctx.clip();
 
     // Lazy boring scrolling offset
-    const scrollY = Math.sin(t * 0.9) * 16 + Math.min(20, t * 3.5);
+    const scrollY = Math.sin(t * 0.9) * 14 + Math.min(18, t * 3.2);
 
-    // Paper background
+    // Paper Background
     ctx.fillStyle = '#f8fafc';
     ctx.fillRect(21, 82, 318, 407);
-
-    // Academic Paper Content
     ctx.translate(0, -scrollY);
 
-    // Paper Header
-    ctx.fillStyle = '#0f172a';
-    ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillText('Nonlinear Dynamics in Forced Oscillators', 35, 118);
+    if (exIdx === 0) {
+      // Example 1: arXiv Math Paper
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 12.5px -apple-system, sans-serif';
+      ctx.fillText('Nonlinear Dynamics in Forced Oscillators', 35, 118);
 
-    ctx.fillStyle = '#64748b';
-    ctx.font = 'italic 9.5px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillText('A. Poincare, E. Lorenz • Dept. of Dynamical Systems', 35, 134);
+      ctx.fillStyle = '#64748b';
+      ctx.font = 'italic 9.5px -apple-system, sans-serif';
+      ctx.fillText('A. Poincare, E. Lorenz • Dept. of Dynamical Systems', 35, 134);
 
-    // Abstract label
-    ctx.fillStyle = '#334155';
-    ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillText('Abstract & Governing Equations', 35, 156);
+      ctx.fillStyle = '#334155';
+      ctx.font = 'bold 10px -apple-system, sans-serif';
+      ctx.fillText('Abstract & Governing Differential Equation', 35, 156);
 
-    // Boring gray text lines
-    ctx.fillStyle = '#475569';
-    ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillText('In classical mechanics, the forced bistable oscillator exhibits', 35, 174);
-    ctx.fillText('bifurcations leading to chaotic orbits across dual potential wells.', 35, 190);
-    ctx.fillText('The state is governed by the second-order nonlinear equation:', 35, 206);
+      ctx.fillStyle = '#475569';
+      ctx.font = '10px -apple-system, sans-serif';
+      ctx.fillText('In classical mechanics, the forced bistable oscillator exhibits', 35, 174);
+      ctx.fillText('bifurcations leading to chaotic orbits across dual potential wells:', 35, 190);
 
-    // Dense Equation Block
-    ctx.fillStyle = '#e2e8f0';
-    this.roundRect(ctx, 35, 220, 290, 48, 6, true, false);
+      // Dense Equation Block
+      ctx.fillStyle = '#e2e8f0';
+      this.roundRect(ctx, 35, 215, 290, 48, 6, true, false);
 
-    // Displayed Equation: x'' + δ x' - x + x³ = γ cos(ω t)
-    ctx.fillStyle = '#0f172a';
-    ctx.font = 'bold 13px "Times New Roman", Times, serif';
-    ctx.fillText('ẍ + δ ẋ - x + x³ = γ cos(ω t)', 92, 248);
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 13px "Times New Roman", Times, serif';
+      ctx.fillText('ẍ + δ ẋ - x + x³ = γ cos(ω t)', 92, 244);
 
-    ctx.fillStyle = '#475569';
-    ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillText('where δ represents damping, and γ is external driving force.', 35, 288);
-    ctx.fillText('Under critical periodic forcing, orbits form strange attractors.', 35, 304);
-    ctx.fillText('Numerical simulation reveals fractal basin boundaries in phase space.', 35, 320);
+      ctx.fillStyle = '#475569';
+      ctx.font = '10px -apple-system, sans-serif';
+      ctx.fillText('where δ represents damping, and γ is external driving force.', 35, 282);
+      ctx.fillText('Under critical periodic forcing, orbits form strange attractors.', 35, 298);
+    } else if (exIdx === 1) {
+      // Example 2: Markdown Spec with Raw Mermaid Sequence Diagram
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 12.5px -apple-system, sans-serif';
+      ctx.fillText('OAuth2 Token Exchange Specification', 35, 118);
+
+      ctx.fillStyle = '#64748b';
+      ctx.font = 'italic 9.5px -apple-system, sans-serif';
+      ctx.fillText('RFC 8693 Core Protocol • Architecture Documentation', 35, 134);
+
+      ctx.fillStyle = '#334155';
+      ctx.font = 'bold 10px -apple-system, sans-serif';
+      ctx.fillText('Protocol Flow (Mermaid Definition)', 35, 156);
+
+      ctx.fillStyle = '#475569';
+      ctx.font = '10px -apple-system, sans-serif';
+      ctx.fillText('The handshake exchanges authorization code for signed JWT:', 35, 174);
+
+      // Raw Mermaid Code Block
+      ctx.fillStyle = '#1e293b';
+      this.roundRect(ctx, 35, 195, 290, 96, 6, true, false);
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = '9px ui-monospace, monospace';
+      ctx.fillText(String.fromCharCode(96, 96, 96) + 'mermaid', 45, 210);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillText('sequenceDiagram', 45, 224);
+      ctx.fillText('  Client->>AuthService: POST /oauth/token', 45, 238);
+      ctx.fillText('  AuthService->>UserDB: Query user & roles', 45, 252);
+      ctx.fillText('  UserDB-->>AuthService: UserRecord (hash ok)', 45, 266);
+      ctx.fillText('  AuthService->>TokenIssuer: Sign JWT (RS256)', 45, 280);
+
+      ctx.fillStyle = '#475569';
+      ctx.font = '10px -apple-system, sans-serif';
+      ctx.fillText('Client verifies signature via public JWKS endpoint.', 35, 310);
+    } else {
+      // Example 3: Database Relational Schema Spec
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 12.5px -apple-system, sans-serif';
+      ctx.fillText('E-Commerce Relational Data Model', 35, 118);
+
+      ctx.fillStyle = '#64748b';
+      ctx.font = 'italic 9.5px -apple-system, sans-serif';
+      ctx.fillText('PostgreSQL Database Schema v3.4 • Engineering Wiki', 35, 134);
+
+      ctx.fillStyle = '#334155';
+      ctx.font = 'bold 10px -apple-system, sans-serif';
+      ctx.fillText('Core Entity Relationships & Foreign Keys', 35, 156);
+
+      ctx.fillStyle = '#475569';
+      ctx.font = '10px -apple-system, sans-serif';
+      ctx.fillText('Relational schema enforcing customer orders & inventory:', 35, 174);
+
+      // Plain Schema Code Block
+      ctx.fillStyle = '#1e293b';
+      this.roundRect(ctx, 35, 195, 290, 96, 6, true, false);
+
+      ctx.fillStyle = '#10b981';
+      ctx.font = '9px ui-monospace, monospace';
+      ctx.fillText('TABLE users (id PK, email, plan_id FK);', 45, 214);
+      ctx.fillText('TABLE orders (id PK, user_id FK, total, status);', 45, 232);
+      ctx.fillText('TABLE order_items (id PK, order_id FK, product_id FK);', 45, 250);
+      ctx.fillText('TABLE products (id PK, sku, price_cents, stock);', 45, 268);
+
+      ctx.fillStyle = '#475569';
+      ctx.font = '10px -apple-system, sans-serif';
+      ctx.fillText('Foreign keys maintain strict referential integrity.', 35, 310);
+    }
 
     // Highlighting Effect (t >= 3.6s)
     let highlightProgress = 0;
-    if (t >= 3.6 && t < 16.0) {
+    if (t >= 3.6) {
       highlightProgress = Math.min(1.0, (t - 3.6) / 1.4);
-      ctx.fillStyle = 'rgba(56, 189, 248, 0.28)';
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.85)';
+      const hlColor = exIdx === 0
+        ? 'rgba(56, 189, 248, 0.3)'
+        : (exIdx === 1 ? 'rgba(168, 85, 247, 0.3)' : 'rgba(16, 185, 129, 0.3)');
+      const hlBorder = exIdx === 0 ? '#38bdf8' : (exIdx === 1 ? '#a855f7' : '#10b981');
+
+      ctx.fillStyle = hlColor;
+      ctx.strokeStyle = hlBorder;
       ctx.lineWidth = 1;
-      const hw = 260 * highlightProgress;
-      this.roundRect(ctx, 50, 230, hw, 30, 4, true, true);
+
+      const hy = exIdx === 0 ? 222 : 202;
+      const hh = exIdx === 0 ? 36 : 80;
+      const hw = 265 * highlightProgress;
+      this.roundRect(ctx, 45, hy, hw, hh, 4, true, true);
 
       // Shimmering spark particles on highlight
       if (highlightProgress > 0.3) {
-        ctx.fillStyle = '#38bdf8';
+        ctx.fillStyle = hlBorder;
         for (let s = 0; s < 4; s++) {
-          const sx = 50 + (hw * (0.2 + s * 0.25)) % hw;
-          const sy = 235 + Math.sin(t * 8 + s) * 8;
+          const sx = 45 + (hw * (0.2 + s * 0.25)) % hw;
+          const sy = hy + 6 + Math.sin(t * 8 + s) * 10;
           ctx.beginPath();
           ctx.arc(sx, sy, 1.5, 0, Math.PI * 2);
           ctx.fill();
@@ -502,41 +676,35 @@ export const WELCOME_SIMULATION_CODE = `export default {
 
     ctx.restore();
 
-    // Mouse Cursor Coordinates
-    let cursorX = 300;
-    let cursorY = 400;
+    // Mouse Cursor Movement & Context Menu
+    let cursorX = 290;
+    let cursorY = 380;
     let isClicking = false;
 
+    const targetSnippetY = exIdx === 0 ? 240 : 230;
+
     if (t < 2.6) {
-      // Lazy resting cursor
       cursorX = 290 + Math.sin(t * 1.5) * 8;
       cursorY = 380 + Math.cos(t * 1.5) * 8;
     } else if (t < 3.6) {
-      // Moving cursor to equation
       const p = (t - 2.6) / 1.0;
       const easeP = 0.5 - 0.5 * Math.cos(Math.PI * p);
-      cursorX = 290 + (50 - 290) * easeP;
-      cursorY = 380 + (245 - 380) * easeP;
+      cursorX = 290 + (45 - 290) * easeP;
+      cursorY = 380 + (targetSnippetY - 380) * easeP;
     } else if (t < 5.0) {
-      // Dragging selection across text
       const p = (t - 3.6) / 1.4;
-      cursorX = 50 + 260 * p;
-      cursorY = 245;
+      cursorX = 45 + 265 * p;
+      cursorY = targetSnippetY;
       isClicking = true;
     } else if (t < 5.8) {
-      // Right-click action & pause
       cursorX = 210;
-      cursorY = 245;
+      cursorY = targetSnippetY;
     } else if (t < 6.8) {
-      // Moving down context menu to "SimIt ✦"
       const p = Math.min(1.0, (t - 5.8) / 0.6);
       cursorX = 210 + (235 - 210) * p;
-      cursorY = 245 + (318 - 245) * p;
-      if (t >= 6.4) {
-        isClicking = true;
-      }
+      cursorY = targetSnippetY + (318 - targetSnippetY) * p;
+      if (t >= 6.4) isClicking = true;
     } else {
-      // Post-click resting
       cursorX = 235;
       cursorY = 318;
     }
@@ -553,19 +721,14 @@ export const WELCOME_SIMULATION_CODE = `export default {
       this.roundRect(ctx, 160, 240, 160, 94, 8, true, true);
       ctx.shadowBlur = 0;
 
-      // Menu Item 1: Copy
       ctx.fillStyle = '#94a3b8';
       ctx.font = '11px -apple-system, sans-serif';
       ctx.fillText('📋  Copy Selection', 174, 260);
-
-      // Menu Item 2: Search
       ctx.fillText('🔍  Search Web', 174, 280);
 
-      // Divider
       ctx.strokeStyle = 'rgba(255,255,255,0.1)';
       ctx.beginPath(); ctx.moveTo(165, 292); ctx.lineTo(315, 292); ctx.stroke();
 
-      // Menu Item 3: "SimIt ✦" (Highlighted in radiant cyan)
       const hoverSimIt = t >= 5.8;
       if (hoverSimIt) {
         ctx.fillStyle = 'rgba(56, 189, 248, 0.22)';
@@ -575,7 +738,6 @@ export const WELCOME_SIMULATION_CODE = `export default {
       ctx.font = 'bold 12px -apple-system, sans-serif';
       ctx.fillText('✨  SimIt ✦', 174, 317);
 
-      // Click ripple effect on "SimIt ✦"
       if (t >= 6.4) {
         const rippleP = (t - 6.4) / 0.4;
         ctx.strokeStyle = \`rgba(56, 189, 248, \${1.0 - rippleP})\`;
@@ -596,9 +758,7 @@ export const WELCOME_SIMULATION_CODE = `export default {
     ctx.fillText('1. Human Highlight & SimIt Click', 30, 30);
   },
 
-  drawAct2AgentLoop(ctx) {
-    const t = this.storyTime;
-
+  drawAct2AgentLoop(ctx, exIdx, t) {
     // Station Hubs Container
     ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
     ctx.strokeStyle = 'rgba(56, 189, 248, 0.2)';
@@ -609,41 +769,32 @@ export const WELCOME_SIMULATION_CODE = `export default {
     ctx.font = 'bold 11px -apple-system, sans-serif';
     ctx.fillText('2. Autonomous Agent Loop Pipeline', 380, 30);
 
-    // 4 Pipeline Stage Cards
-    const stages = [
-      {
-        num: "A",
-        title: "Context Harvester",
-        icon: "🌾",
-        desc: "Extracts selection, math formulas & DOM headings",
-        badge: "Harvested",
-        active: t >= 6.8
-      },
-      {
-        num: "B",
-        title: "Archetype Triage",
-        icon: "🧠",
-        desc: "Autonomous: Parameter Explorer (Attractor)",
-        badge: "Confidence 98.4%",
-        active: t >= 7.6
-      },
-      {
-        num: "C",
-        title: "Gemini Nano / Gemma",
-        icon: "⚡",
-        desc: "Zero-cost on-device module synthesis",
-        badge: "450ms • $0.00",
-        active: t >= 8.5
-      },
-      {
-        num: "D",
-        title: "Offscreen Verification",
-        icon: "🧪",
-        desc: "100ms headless smoke test & 1-shot self-repair",
-        badge: "PASS (42ms) ✓",
-        active: t >= 9.4
-      }
+    // Dynamic Station Data based on active scenario
+    const stageConfigs = [
+      // Ex 1: Duffing Math
+      [
+        { num: "A", title: "Context Harvester", icon: "🌾", desc: "Harvests: ẍ + δ ẋ - x + x³ = γ cos(ω t)", badge: "Equation + Context", active: t >= 6.8 },
+        { num: "B", title: "Archetype Triage", icon: "🧠", desc: "Detected: Parameter Explorer (Phase Space)", badge: "Confidence 98.4%", active: t >= 7.6 },
+        { num: "C", title: "Gemini Nano / Gemma", icon: "⚡", desc: "Synthesizing 60 FPS Runge-Kutta module", badge: "410ms • $0.00", active: t >= 8.5 },
+        { num: "D", title: "Offscreen Verification", icon: "🧪", desc: "100ms smoke test in sandboxed iframe", badge: "PASS (38ms) ✓", active: t >= 9.4 }
+      ],
+      // Ex 2: Sequence Mermaid
+      [
+        { num: "A", title: "Context Harvester", icon: "🌾", desc: "Harvests raw sequenceDiagram syntax", badge: "Mermaid AST Scope", active: t >= 6.8 },
+        { num: "B", title: "Archetype Triage", icon: "🧠", desc: "Detected: Step Scrubber / Sequence Flow", badge: "Confidence 99.1%", active: t >= 7.6 },
+        { num: "C", title: "Gemini Nano / Gemma", icon: "⚡", desc: "Synthesizing reactive SVG timeline & lifelines", badge: "430ms • $0.00", active: t >= 8.5 },
+        { num: "D", title: "Offscreen Verification", icon: "🧪", desc: "100ms smoke test in sandboxed iframe", badge: "PASS (41ms) ✓", active: t >= 9.4 }
+      ],
+      // Ex 3: Relational ERD
+      [
+        { num: "A", title: "Context Harvester", icon: "🌾", desc: "Harvests schema tables, PKs and FKs", badge: "Relational Scope", active: t >= 6.8 },
+        { num: "B", title: "Archetype Triage", icon: "🧠", desc: "Detected: Interactive Graph / ERD Diagram", badge: "Confidence 97.8%", active: t >= 7.6 },
+        { num: "C", title: "Gemini Nano / Gemma", icon: "⚡", desc: "Synthesizing Cytoscape/force relational graph", badge: "440ms • $0.00", active: t >= 8.5 },
+        { num: "D", title: "Offscreen Verification", icon: "🧪", desc: "100ms smoke test in sandboxed iframe", badge: "PASS (35ms) ✓", active: t >= 9.4 }
+      ]
     ];
+
+    const stages = stageConfigs[exIdx] || stageConfigs[0];
 
     stages.forEach((st, i) => {
       const cy = 60 + i * 102;
@@ -688,13 +839,12 @@ export const WELCOME_SIMULATION_CODE = `export default {
     });
   },
 
-  drawAct3PayoffSimulation(ctx) {
-    const t = this.storyTime;
-    const isLive = t >= 10.2;
+  drawAct3PayoffSimulation(ctx, exIdx, t) {
+    const isLive = t >= 9.8;
 
     // Simulated Side Panel Frame
     ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
-    ctx.strokeStyle = isLive ? 'rgba(56, 189, 248, 0.5)' : 'rgba(56, 189, 248, 0.2)';
+    ctx.strokeStyle = isLive ? 'rgba(56, 189, 248, 0.65)' : 'rgba(56, 189, 248, 0.2)';
     ctx.lineWidth = 1.5;
     this.roundRect(ctx, 740, 40, 320, 450, 12, true, true);
 
@@ -702,7 +852,109 @@ export const WELCOME_SIMULATION_CODE = `export default {
     ctx.font = 'bold 11px -apple-system, sans-serif';
     ctx.fillText('3. Live Interactive Payoff in SimIt', 750, 30);
 
+    // If particles haven't passed offscreen verification yet, show Awaiting / Synthesizing State!
+    if (!isLive) {
+      this.drawAct3Standby(ctx, t);
+      return;
+    }
+
+    // Materialization shockwave when live triggers at 9.8s
+    if (t < 10.5) {
+      const shockP = (t - 9.8) / 0.7;
+      ctx.strokeStyle = \`rgba(56, 189, 248, \${1.0 - shockP})\`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(750, 275, 280 * shockP, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Render active Payoff Simulation based on current scenario
+    if (exIdx === 0) {
+      this.drawPayoffDuffing(ctx);
+    } else if (exIdx === 1) {
+      this.drawPayoffSequence(ctx);
+    } else {
+      this.drawPayoffERD(ctx);
+    }
+  },
+
+  drawAct3Standby(ctx, t) {
     // Sidepanel Mini Header
+    ctx.fillStyle = 'rgba(30, 41, 59, 0.8)';
+    this.roundRect(ctx, 740, 40, 320, 52, 12, true, false);
+
+    const isSynthesizing = t >= 6.8;
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 12.5px -apple-system, sans-serif';
+    ctx.fillText('SimIt Interactive Copilot', 758, 64);
+
+    ctx.fillStyle = isSynthesizing ? '#38bdf8' : '#94a3b8';
+    ctx.font = '9.5px ui-monospace, monospace';
+    ctx.fillText(isSynthesizing ? '⚡ Offscreen Synthesis & Verification in Progress...' : '✦ Standby • Awaiting SimIt Trigger', 758, 80);
+
+    // Central Radar / Mesh Area
+    const boxX = 755;
+    const boxY = 100;
+    const boxW = 290;
+    const boxH = 370;
+
+    ctx.fillStyle = '#060a17';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.15)';
+    this.roundRect(ctx, boxX, boxY, boxW, boxH, 8, true, true);
+
+    // Subtle dark matrix grid
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.05)';
+    ctx.lineWidth = 1;
+    for (let gx = boxX + 20; gx < boxX + boxW; gx += 25) {
+      ctx.beginPath(); ctx.moveTo(gx, boxY); ctx.lineTo(gx, boxY + boxH); ctx.stroke();
+    }
+    for (let gy = boxY + 20; gy < boxY + boxH; gy += 25) {
+      ctx.beginPath(); ctx.moveTo(boxX, gy); ctx.lineTo(boxX + boxW, gy); ctx.stroke();
+    }
+
+    if (isSynthesizing) {
+      // Animated Radar Scanning Wave
+      const midX = boxX + boxW / 2;
+      const midY = boxY + boxH / 2;
+      const radarR = 50 + Math.sin(t * 5) * 15;
+
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(midX, midY, radarR, 0, Math.PI * 2); ctx.stroke();
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 12px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('🧪 Running Headless Smoke Test...', midX, midY + 85);
+
+      ctx.fillStyle = '#64748b';
+      ctx.font = '10px -apple-system, sans-serif';
+      ctx.fillText('Validating AST & Sandbox CSP Execution', midX, midY + 105);
+      ctx.textAlign = 'start';
+    } else {
+      // Waiting state
+      const midX = boxX + boxW / 2;
+      const midY = boxY + boxH / 2;
+
+      ctx.fillStyle = '#475569';
+      ctx.font = '18px -apple-system';
+      ctx.textAlign = 'center';
+      ctx.fillText('✨', midX, midY - 20);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 11.5px -apple-system, sans-serif';
+      ctx.fillText('Ready for Selection', midX, midY + 10);
+
+      ctx.fillStyle = '#64748b';
+      ctx.font = '10px -apple-system, sans-serif';
+      ctx.fillText('Highlight text on page & right-click SimIt', midX, midY + 30);
+      ctx.textAlign = 'start';
+    }
+  },
+
+  drawPayoffDuffing(ctx) {
+    // Header
     ctx.fillStyle = 'rgba(30, 41, 59, 0.8)';
     this.roundRect(ctx, 740, 40, 320, 52, 12, true, false);
 
@@ -714,7 +966,6 @@ export const WELCOME_SIMULATION_CODE = `export default {
     ctx.font = '9.5px ui-monospace, monospace';
     ctx.fillText('✦ SimIt Generated • 60 FPS • 0ms Reactivity', 758, 80);
 
-    // Interactive Phase Portrait Box (x vs v)
     const boxX = 755;
     const boxY = 100;
     const boxW = 290;
@@ -724,7 +975,6 @@ export const WELCOME_SIMULATION_CODE = `export default {
     ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
     this.roundRect(ctx, boxX, boxY, boxW, boxH, 8, true, true);
 
-    // Coordinate Axes
     const midX = boxX + boxW / 2;
     const midY = boxY + boxH / 2;
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
@@ -739,7 +989,7 @@ export const WELCOME_SIMULATION_CODE = `export default {
     ctx.fillText('x (position)', boxX + boxW - 65, midY - 6);
     ctx.fillText('ẋ (velocity)', midX + 6, boxY + 20);
 
-    // Draw Glowing Phase Space Trajectory Trail
+    // Orbit trail
     const hist = this.payoff.history;
     if (hist.length > 2) {
       ctx.lineWidth = 1.5;
@@ -760,7 +1010,7 @@ export const WELCOME_SIMULATION_CODE = `export default {
       }
     }
 
-    // Current State Orbit Point
+    // Current State Point
     const curPx = midX + (this.payoff.x / 2.4) * (boxW / 2 - 20);
     const curPy = midY - (this.payoff.v / 2.5) * (boxH / 2 - 20);
 
@@ -772,7 +1022,7 @@ export const WELCOME_SIMULATION_CODE = `export default {
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    // Potential Well Plot V(x) = 0.25*x^4 - 0.5*x^2
+    // Potential Well Plot
     const wellBoxY = 330;
     const wellBoxH = 85;
     ctx.fillStyle = 'rgba(6, 10, 23, 0.8)';
@@ -783,7 +1033,6 @@ export const WELCOME_SIMULATION_CODE = `export default {
     ctx.font = '9.5px -apple-system, sans-serif';
     ctx.fillText('Bistable Dual Potential Wells V(x)', boxX + 10, wellBoxY + 16);
 
-    // Draw Potential Well Curve
     ctx.strokeStyle = '#38bdf8';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -796,7 +1045,7 @@ export const WELCOME_SIMULATION_CODE = `export default {
     }
     ctx.stroke();
 
-    // Draw Mass Ball rocking chaotically in potential well
+    // Mass Ball
     const massPx = boxX + 10 + ((this.payoff.x / 3.8) + 0.5) * (boxW - 20);
     const massVx = Math.max(-1.8, Math.min(1.8, this.payoff.x));
     const massVy = 0.25 * Math.pow(massVx, 4) - 0.5 * Math.pow(massVx, 2);
@@ -810,7 +1059,7 @@ export const WELCOME_SIMULATION_CODE = `export default {
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    // Interactive Hint Banner
+    // Interactive Hint
     ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
     this.roundRect(ctx, boxX, 425, boxW, 50, 6, true, false);
 
@@ -821,6 +1070,230 @@ export const WELCOME_SIMULATION_CODE = `export default {
     ctx.fillStyle = '#94a3b8';
     ctx.font = '9.5px -apple-system, sans-serif';
     ctx.fillText('Adjust Driving Force (γ) in controls to morph chaotic regime.', boxX + 12, 462);
+  },
+
+  drawPayoffSequence(ctx) {
+    // Header
+    ctx.fillStyle = 'rgba(30, 41, 59, 0.8)';
+    this.roundRect(ctx, 740, 40, 320, 52, 12, true, false);
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 12.5px -apple-system, sans-serif';
+    ctx.fillText('Interactive Sequence Flow', 758, 64);
+
+    ctx.fillStyle = '#a855f7';
+    ctx.font = '9.5px ui-monospace, monospace';
+    ctx.fillText('✦ Step Scrubber • Live Reactive Animation', 758, 80);
+
+    const boxX = 755;
+    const boxY = 100;
+    const boxW = 290;
+    const boxH = 315;
+
+    ctx.fillStyle = '#060a17';
+    ctx.strokeStyle = 'rgba(168, 85, 247, 0.25)';
+    this.roundRect(ctx, boxX, boxY, boxW, boxH, 8, true, true);
+
+    // 4 Lifelines
+    const lifelines = [
+      { name: "Client", x: 780, color: "#38bdf8" },
+      { name: "AuthSvc", x: 845, color: "#a855f7" },
+      { name: "UserDB", x: 910, color: "#10b981" },
+      { name: "Token", x: 975, color: "#f59e0b" }
+    ];
+
+    lifelines.forEach((ll) => {
+      // Header box
+      ctx.fillStyle = 'rgba(30, 41, 59, 0.9)';
+      ctx.strokeStyle = ll.color;
+      ctx.lineWidth = 1;
+      this.roundRect(ctx, ll.x - 24, boxY + 10, 48, 22, 4, true, true);
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 9.5px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(ll.name, ll.x, boxY + 25);
+      ctx.textAlign = 'start';
+
+      // Vertical lifeline
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.setLineDash([3, 4]);
+      ctx.beginPath();
+      ctx.moveTo(ll.x, boxY + 34);
+      ctx.lineTo(ll.x, boxY + boxH - 12);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    });
+
+    // 5 Sequence Steps
+    const steps = [
+      { from: 780, to: 845, y: 155, label: "1. POST /oauth/token", desc: "Credentials exchange" },
+      { from: 845, to: 910, y: 205, label: "2. Query user & roles", desc: "SQL hash lookup" },
+      { from: 910, to: 845, y: 255, label: "3. UserRecord ok", desc: "200 valid record" },
+      { from: 845, to: 975, y: 305, label: "4. Sign JWT (RS256)", desc: "Private key signing" },
+      { from: 975, to: 780, y: 355, label: "5. 200 OK { token }", desc: "JWT + refresh returned" }
+    ];
+
+    steps.forEach((st, idx) => {
+      const isCurrent = this.seqStep === idx;
+      ctx.strokeStyle = isCurrent ? '#a855f7' : 'rgba(255, 255, 255, 0.2)';
+      ctx.lineWidth = isCurrent ? 2 : 1;
+
+      // Draw horizontal arrow
+      ctx.beginPath();
+      ctx.moveTo(st.from, st.y);
+      ctx.lineTo(st.to, st.y);
+      ctx.stroke();
+
+      // Arrowhead
+      const dir = st.to > st.from ? 1 : -1;
+      ctx.fillStyle = isCurrent ? '#a855f7' : 'rgba(255, 255, 255, 0.3)';
+      ctx.beginPath();
+      ctx.moveTo(st.to, st.y);
+      ctx.lineTo(st.to - dir * 6, st.y - 3.5);
+      ctx.lineTo(st.to - dir * 6, st.y + 3.5);
+      ctx.closePath();
+      ctx.fill();
+
+      // Step text
+      ctx.fillStyle = isCurrent ? '#f8fafc' : '#64748b';
+      ctx.font = isCurrent ? 'bold 9.5px -apple-system, sans-serif' : '8.5px -apple-system, sans-serif';
+      const labelX = Math.min(st.from, st.to) + Math.abs(st.to - st.from) / 2;
+      ctx.textAlign = 'center';
+      ctx.fillText(st.label, labelX, st.y - 6);
+      ctx.textAlign = 'start';
+
+      // Animated flowing packet along current arrow
+      if (isCurrent) {
+        const progress = (this.seqTimer % 1.6) / 1.6;
+        const curPx = st.from + (st.to - st.from) * progress;
+
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = '#a855f7';
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(curPx, st.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+    });
+
+    // Step Scrubber Controls Bar (Interactive)
+    const ctrlY = 425;
+    ctx.fillStyle = 'rgba(30, 41, 59, 0.85)';
+    this.roundRect(ctx, boxX, ctrlY, boxW, 50, 6, true, false);
+
+    // Prev Button: 765-825
+    ctx.fillStyle = 'rgba(168, 85, 247, 0.2)';
+    this.roundRect(ctx, boxX + 8, ctrlY + 12, 60, 26, 4, true, false);
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 10px -apple-system, sans-serif';
+    ctx.fillText('⏪ Prev', boxX + 18, ctrlY + 28);
+
+    // Next Button: 835-895
+    ctx.fillStyle = 'rgba(168, 85, 247, 0.2)';
+    this.roundRect(ctx, boxX + 76, ctrlY + 12, 60, 26, 4, true, false);
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillText('Next ⏩', boxX + 86, ctrlY + 28);
+
+    // Play/Pause Button
+    ctx.fillStyle = this.seqPlaying ? 'rgba(16, 185, 129, 0.25)' : 'rgba(244, 63, 94, 0.25)';
+    this.roundRect(ctx, boxX + 144, ctrlY + 12, 60, 26, 4, true, false);
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillText(this.seqPlaying ? '⏸ Pause' : '▶ Play', boxX + 154, ctrlY + 28);
+
+    // Step Status Badge
+    ctx.fillStyle = '#a855f7';
+    ctx.font = 'bold 10px ui-monospace, monospace';
+    ctx.fillText(\`Step \${this.seqStep + 1} of 5\`, boxX + 215, ctrlY + 28);
+  },
+
+  drawPayoffERD(ctx) {
+    // Header
+    ctx.fillStyle = 'rgba(30, 41, 59, 0.8)';
+    this.roundRect(ctx, 740, 40, 320, 52, 12, true, false);
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 12.5px -apple-system, sans-serif';
+    ctx.fillText('Interactive Relational ERD', 758, 64);
+
+    ctx.fillStyle = '#10b981';
+    ctx.font = '9.5px ui-monospace, monospace';
+    ctx.fillText('✦ Relational Graph • Foreign Key Navigation', 758, 80);
+
+    const boxX = 755;
+    const boxY = 100;
+    const boxW = 290;
+    const boxH = 315;
+
+    ctx.fillStyle = '#060a17';
+    ctx.strokeStyle = 'rgba(16, 185, 129, 0.25)';
+    this.roundRect(ctx, boxX, boxY, boxW, boxH, 8, true, true);
+
+    // 4 Entity Tables
+    const tables = [
+      { id: 'users', title: 'users', x: 765, y: 115, w: 125, h: 105, color: '#38bdf8', cols: ['🔑 id (UUID)', 'email (text)', 'created_at'] },
+      { id: 'orders', title: 'orders', x: 905, y: 115, w: 130, h: 105, color: '#a855f7', cols: ['🔑 id (UUID)', '🔗 user_id (FK)', 'total_cents', 'status'] },
+      { id: 'products', title: 'products', x: 765, y: 245, w: 125, h: 105, color: '#10b981', cols: ['🔑 id (UUID)', 'sku (text)', 'price_cents', 'stock'] },
+      { id: 'order_items', title: 'order_items', x: 905, y: 245, w: 130, h: 105, color: '#f59e0b', cols: ['🔑 id (UUID)', '🔗 order_id (FK)', '🔗 product_id (FK)', 'quantity'] }
+    ];
+
+    // Connectors with 1:N cardinality
+    const rels = [
+      { fromX: 890, fromY: 155, toX: 905, toY: 155, label: "1:N" },
+      { fromX: 970, fromY: 220, toX: 970, toY: 245, label: "1:N" },
+      { fromX: 890, fromY: 295, toX: 905, toY: 295, label: "1:N" }
+    ];
+
+    rels.forEach((rel) => {
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.6)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(rel.fromX, rel.fromY);
+      ctx.lineTo(rel.toX, rel.toY);
+      ctx.stroke();
+
+      // Cardinality Tag
+      ctx.fillStyle = '#10b981';
+      ctx.font = '8px ui-monospace, monospace';
+      ctx.fillText(rel.label, (rel.fromX + rel.toX) / 2 - 6, (rel.fromY + rel.toY) / 2 - 4);
+    });
+
+    // Render Entity Tables
+    tables.forEach((tb) => {
+      const isSelected = this.erdSelectedTable === tb.id;
+      ctx.fillStyle = isSelected ? 'rgba(30, 41, 59, 0.95)' : 'rgba(15, 23, 42, 0.9)';
+      ctx.strokeStyle = isSelected ? '#10b981' : 'rgba(255, 255, 255, 0.15)';
+      ctx.lineWidth = isSelected ? 2 : 1;
+      this.roundRect(ctx, tb.x, tb.y, tb.w, tb.h, 6, true, true);
+
+      // Table Header
+      ctx.fillStyle = tb.color;
+      this.roundRect(ctx, tb.x, tb.y, tb.w, 20, 6, true, false);
+      ctx.fillStyle = '#0f172a';
+      ctx.font = 'bold 10px ui-monospace, monospace';
+      ctx.fillText(tb.title, tb.x + 8, tb.y + 14);
+
+      // Columns
+      tb.cols.forEach((col, cIdx) => {
+        ctx.fillStyle = col.includes('🔑') ? '#f59e0b' : (col.includes('🔗') ? '#38bdf8' : '#94a3b8');
+        ctx.font = '9px ui-monospace, monospace';
+        ctx.fillText(col, tb.x + 6, tb.y + 36 + cIdx * 16);
+      });
+    });
+
+    // Bottom interactive tip
+    ctx.fillStyle = 'rgba(16, 185, 129, 0.15)';
+    this.roundRect(ctx, boxX, 425, boxW, 50, 6, true, false);
+
+    ctx.fillStyle = '#10b981';
+    ctx.font = 'bold 10px -apple-system, sans-serif';
+    ctx.fillText('👆 Click any table to inspect relations & foreign keys!', boxX + 12, 444);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '9.5px -apple-system, sans-serif';
+    const selText = this.erdSelectedTable ? \`Selected: \${this.erdSelectedTable.toUpperCase()} (highlighting relations)\` : 'Click tables to navigate schema graph.';
+    ctx.fillText(selText, boxX + 12, 462);
   },
 
   drawCursor(ctx, x, y, isClicking) {
@@ -852,7 +1325,7 @@ export const WELCOME_SIMULATION_CODE = `export default {
     ctx.restore();
   },
 
-  drawScreenHUD(ctx) {
+  drawScreenHUD(ctx, exIdx) {
     const { w, h } = this;
 
     // Top Guidance Banner (Fixed Screen Coordinates)
@@ -865,14 +1338,15 @@ export const WELCOME_SIMULATION_CODE = `export default {
     this.roundRect(ctx, 10, 8, w - 20, 24, 6, true, true);
     ctx.shadowBlur = 0;
 
+    const exTitles = ["1/3: Duffing Attractor", "2/3: Mermaid Sequence", "3/3: Relational ERD"];
     ctx.fillStyle = '#38bdf8';
     ctx.font = 'bold 9.5px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillText('✦ SimIt Origin Journey', 18, 24);
+    ctx.fillText(\`✦ Scenario \${exTitles[exIdx]}\`, 18, 24);
 
     ctx.fillStyle = '#94a3b8';
     ctx.font = '9px -apple-system, BlinkMacSystemFont, sans-serif';
-    const hint = w > 360 ? '• Drag canvas to Pan ↔ • Use bottom-left (- / +) to Zoom' : '• Drag ↔ to Pan • Zoom (- / +)';
-    ctx.fillText(hint, w > 360 ? 148 : 124, 24);
+    const hint = w > 360 ? '• Drag to Pan ↔ • Use bottom-left (- / +) to Zoom' : '• Drag ↔ • Zoom (-/+)';
+    ctx.fillText(hint, w > 360 ? 190 : 155, 24);
     ctx.restore();
 
     // Bottom Chapter Nav Pills (Fixed Screen Coordinates)
@@ -924,6 +1398,11 @@ export const WELCOME_SIMULATION_CODE = `export default {
       this.storyTime = 0;
       this.userInteractingTimer = 0;
       this.viewMode = "Auto-Tour";
+    }
+    if (newParams.example !== undefined) {
+      this.example = newParams.example;
+      this.storyTime = 0;
+      this.userInteractingTimer = 0;
     }
     if (newParams.viewMode !== undefined) {
       this.viewMode = newParams.viewMode;
