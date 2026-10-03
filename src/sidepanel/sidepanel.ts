@@ -249,8 +249,11 @@ export const WELCOME_SIMULATION_CODE = `export default {
     ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
     ctx.strokeStyle = 'rgba(56, 189, 248, 0.28)';
     ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.roundRect ? ctx.roundRect(bx, by, boxW, boxH, 12) : ctx.rect(bx, by, boxW, boxH);
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(bx, by, boxW, boxH, 12);
+    } else {
+      ctx.rect(bx, by, boxW, boxH);
+    }
     ctx.fill();
     ctx.stroke();
 
@@ -400,6 +403,9 @@ function setStatusPill(status: 'Ready' | 'Synthesizing' | 'Verifying' | 'Active'
   if (status === 'Error') statusPill.classList.add('status-error');
 }
 
+let isSandboxReady = false;
+let pendingInitMessage: SandboxInitSimulationMessage | null = null;
+
 /**
  * Initializes simulation in sandboxed iframe
  */
@@ -409,7 +415,11 @@ export function initSimulationInIframe(code: string, initialParams?: ParameterSt
   lastRuntimeError = null;
 
   setViewState('simulation');
-  setStatusPill('Active');
+  if (code === WELCOME_SIMULATION_CODE) {
+    setStatusPill('Ready');
+  } else {
+    setStatusPill('Active');
+  }
 
   const msg: SandboxInitSimulationMessage = {
     type: 'SANDBOX_INIT_SIMULATION',
@@ -417,7 +427,17 @@ export function initSimulationInIframe(code: string, initialParams?: ParameterSt
     initialParams
   };
 
-  if (sandboxIframe.contentWindow) {
+  if (!isSandboxReady) {
+    pendingInitMessage = msg;
+    if (sandboxIframe && sandboxIframe.contentWindow) {
+      try {
+        sandboxIframe.contentWindow.postMessage(msg, '*');
+      } catch {}
+    }
+    return;
+  }
+
+  if (sandboxIframe && sandboxIframe.contentWindow) {
     sandboxIframe.contentWindow.postMessage(msg, '*');
   }
 }
@@ -627,13 +647,27 @@ btnRepair?.addEventListener('click', () => {
 
 // Listen for postMessage from Sandboxed iframe
 window.addEventListener('message', (event) => {
-  const data = event.data as SandboxToHostMessage;
+  const data = event.data as any;
   if (!data || !data.type) return;
+
+  if (data.type === 'SANDBOX_READY') {
+    isSandboxReady = true;
+    if (pendingInitMessage && sandboxIframe && sandboxIframe.contentWindow) {
+      sandboxIframe.contentWindow.postMessage(pendingInitMessage, '*');
+      pendingInitMessage = null;
+    } else if (!activeCode || activeCode === WELCOME_SIMULATION_CODE) {
+      initSimulationInIframe(WELCOME_SIMULATION_CODE);
+    }
+    return;
+  }
 
   if (data.type === 'SANDBOX_SIMULATION_READY') {
     simTitle.textContent = data.title;
     simDesc.textContent = data.description;
     renderControlsDock(data.parameters, currentParamsState);
+    if (activeCode === WELCOME_SIMULATION_CODE) {
+      setStatusPill('Ready');
+    }
   } else if (data.type === 'SANDBOX_PARAMETERS_CHANGED') {
     if (data.params) {
       currentParamsState = { ...currentParamsState, ...data.params };
@@ -649,6 +683,18 @@ window.addEventListener('message', (event) => {
     // Reveal auto-appearing Repair Icon
     btnRepair.style.display = 'inline-flex';
   }
+});
+
+sandboxIframe?.addEventListener('load', () => {
+  setTimeout(() => {
+    isSandboxReady = true;
+    if (pendingInitMessage && sandboxIframe && sandboxIframe.contentWindow) {
+      sandboxIframe.contentWindow.postMessage(pendingInitMessage, '*');
+      pendingInitMessage = null;
+    } else if (!activeCode || activeCode === WELCOME_SIMULATION_CODE) {
+      initSimulationInIframe(WELCOME_SIMULATION_CODE);
+    }
+  }, 60);
 });
 
 // Listen for chrome.runtime messages from background service worker
