@@ -524,7 +524,10 @@ async function handleEvolutionRequest(message: EvolutionRequestMessage): Promise
     intentType: 'structural_evolution',
     evolvedCode: repairResult.code,
     parameters: repairResult.parameters,
-    suggestedChips: updatedChips
+    suggestedChips: updatedChips,
+    versionId: newVersionId,
+    versionIndex: nextIndex,
+    versionLabel: `v${nextIndex}`
   };
 }
 
@@ -572,13 +575,47 @@ async function handleCloudEscalation(message: CloudEscalationRequestMessage): Pr
     };
   }
 
+  let nextIndex = 2;
+  let newVersionId = `ver_v2_${Date.now()}`;
+  try {
+    const session = await getSession(message.sessionId);
+    if (session) {
+      const versions = await getVersionsForSession(message.sessionId);
+      nextIndex = versions.length + 1;
+      newVersionId = `ver_v${nextIndex}_${Date.now()}`;
+      const newVersion: SimulationVersion = {
+        id: newVersionId,
+        sessionId: message.sessionId,
+        versionIndex: nextIndex,
+        versionLabel: `v${nextIndex}`,
+        code: repairResult.code,
+        title: session.title,
+        description: `Cloud escalation via ${candidateProvider}`,
+        parameters: repairResult.parameters,
+        parameterState: {},
+        trigger: 'cloud_escalation',
+        timestamp: Date.now()
+      };
+      await saveVersion(newVersion);
+      session.activeVersionId = newVersionId;
+      session.versionsCount = nextIndex;
+      session.updatedAt = Date.now();
+      await saveSession(session);
+    }
+  } catch (err) {
+    console.warn('[SimIt SW] Cloud escalation session save error:', err);
+  }
+
   return {
     type: 'CLOUD_ESCALATION_RESPONSE',
     status: 'ok',
     evolvedCode: repairResult.code,
     parameters: repairResult.parameters,
     provider: candidateProvider,
-    modelName: settings.providers[candidateProvider]?.modelName || candidateProvider
+    modelName: settings.providers[candidateProvider]?.modelName || candidateProvider,
+    versionId: newVersionId,
+    versionIndex: nextIndex,
+    versionLabel: `v${nextIndex}`
   };
 }
 

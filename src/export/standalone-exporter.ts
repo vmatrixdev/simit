@@ -298,6 +298,10 @@ ${parameters.map(p => {
             ${(p.options || []).map(opt => `<option value="${opt}" ${opt === currentVal ? 'selected' : ''}>${opt}</option>`).join('')}
           </select>
         </div>`;
+  } else if (p.type === 'button' || (p as any).type === 'action') {
+    return `        <div class="control-row">
+          <button class="btn-action" id="btn-${p.id}" style="background:rgba(56,189,248,0.15); border:1px solid #38bdf8; color:#38bdf8; border-radius:4px; padding:6px 12px; font-size:11px; font-weight:600; cursor:pointer; width:100%;">${escapeHtml(p.label || p.id)}</button>
+        </div>`;
   }
   return '';
 }).join('\n')}
@@ -335,6 +339,15 @@ ${parameters.map(p => {
       // Bind events to pre-rendered controls
       parameters.forEach(p => {
         const input = document.getElementById('input-' + p.id);
+        const btn = document.getElementById('btn-' + p.id);
+        if (btn && (p.type === 'button' || p.type === 'action')) {
+          btn.addEventListener('click', () => {
+            if (window.__simModule && typeof window.__simModule.update === 'function') {
+              window.__simModule.update({ [p.id]: true });
+            }
+          });
+          return;
+        }
         if (!input) return;
         if (p.type === 'slider' || p.type === 'stepper') {
           input.addEventListener('input', (e) => {

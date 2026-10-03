@@ -184,4 +184,30 @@ describe('Repair Loop & ATIF Export Specifications', () => {
     expect(html).toContain('id="input-tau"');
     expect(html).toContain('id="input-mode"');
   });
+
+  it('standalone exporter renders button action parameters with click listeners', () => {
+    const html = generateStandaloneSimulationHtml({
+      title: 'Quicksort Partitioning',
+      description: 'Lomuto step controls',
+      parameters: [
+        { id: 'step', label: 'Step Forward', type: 'button' },
+        { id: 'reset', label: 'Reset Array', type: 'button' },
+        { id: 'speed', label: 'Speed', type: 'slider', min: 100, max: 800, step: 50, default: 300 }
+      ],
+      initialParams: { speed: 300 },
+      code: `export default {
+        title: "Quicksort",
+        parameters: [],
+        init(container, params) {},
+        update(params) {}
+      };`
+    });
+
+    expect(html).toContain('id="btn-step"');
+    expect(html).toContain('Step Forward');
+    expect(html).toContain('id="btn-reset"');
+    expect(html).toContain('Reset Array');
+    expect(html).toContain('id="input-speed"');
+    expect(html).toContain("window.__simModule.update({ [p.id]: true });");
+  });
 });

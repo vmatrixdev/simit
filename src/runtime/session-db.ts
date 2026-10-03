@@ -159,14 +159,25 @@ export async function rollbackToVersion(
   sessionId: string,
   targetVersionId: string
 ): Promise<SimulationVersion> {
-  const version = await getVersion(targetVersionId);
+  let version = await getVersion(targetVersionId);
+  if (!version) {
+    const versions = await getVersionsForSession(sessionId);
+    version = versions.find(
+      (v) =>
+        v.id === targetVersionId ||
+        v.versionLabel === targetVersionId ||
+        `ver_${v.versionLabel}` === targetVersionId ||
+        `ver_v${v.versionIndex}` === targetVersionId ||
+        String(v.versionIndex) === targetVersionId
+    );
+  }
   if (!version) {
     throw new Error(`Version ${targetVersionId} not found in storage.`);
   }
 
   const session = await getSession(sessionId);
   if (session) {
-    session.activeVersionId = targetVersionId;
+    session.activeVersionId = version.id;
     session.updatedAt = Date.now();
     await saveSession(session);
   }

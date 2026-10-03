@@ -118,19 +118,34 @@
           <p id="sim-desc">Simulation description will appear here.</p>
         </div>
 
-        <!-- Evolution Chips Dock (Max 4 visible) -->
-        <div class="chips-dock" id="evolution-chips-dock" style="display: none;">
-          <div class="chips-label">✨ Quick Evolutions:</div>
-          <div class="chips-list" id="evolution-chips-list">
-            <!-- Dynamically populated chips -->
+        <div class="iframe-container">
+          <iframe id="sandbox-iframe" src="../sandbox/sandbox.html" sandbox="allow-scripts"></iframe>
+
+          <!-- Floating Transparent Code Terminal Overlay -->
+          <div class="code-terminal-overlay" id="code-terminal-overlay" style="display: none;">
+            <div class="terminal-header">
+              <div class="terminal-dots">
+                <span class="dot dot-close" id="btn-close-terminal-dot" title="Close Terminal"></span>
+                <span class="dot dot-minimize"></span>
+                <span class="dot dot-expand"></span>
+              </div>
+              <span class="terminal-title">simulation.js</span>
+              <div class="terminal-actions">
+                <button class="terminal-action-btn" id="btn-copy-terminal-code" type="button" title="Copy Code">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  <span id="terminal-copy-text">Copy</span>
+                </button>
+                <button class="terminal-action-btn terminal-close-btn" id="btn-close-terminal" type="button" title="Close">✕</button>
+              </div>
+            </div>
+            <pre class="terminal-body" id="sim-code-preview"></pre>
           </div>
         </div>
 
-        <div class="iframe-container">
-          <iframe id="sandbox-iframe" src="../sandbox/sandbox.html" sandbox="allow-scripts"></iframe>
-        </div>
-
-        <div class="controls-dock" id="controls-dock">
+        <div class="controls-dock" id="controls-dock" style="display: none;">
           <div class="dock-header">
             <span>Dynamic Parameters</span>
             <button class="btn-reset" id="btn-reset-params">Reset</button>
@@ -144,23 +159,29 @@
         <div class="refinement-dock" id="refinement-dock">
           <div class="refinement-input-row">
             <input type="text" id="refinement-input" placeholder="Refine simulation (e.g. 'set tau to 2.5', 'add entropy curve')..." autocomplete="off" />
-            <button id="btn-refinement-send" type="button" title="Send refinement">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="22" y1="2" x2="11" y2="13"></line>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-              </svg>
-            </button>
+            <div class="refinement-actions">
+              <button class="btn-refinement-action" id="btn-toggle-code-terminal" type="button" title="View Simulation Code in Terminal">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="16 18 22 12 16 6"></polyline>
+                  <polyline points="8 6 2 12 8 18"></polyline>
+                </svg>
+              </button>
+              <button class="btn-refinement-action" id="btn-copy-sim-code-inline" type="button" title="Copy Simulation Code">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+              </button>
+              <button class="btn-refinement-send" id="btn-refinement-send" type="button" title="Send refinement">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+              </button>
+            </div>
           </div>
           <div class="refinement-status" id="refinement-status" style="display: none;"></div>
         </div>
-
-        <details class="sim-code-accordion" id="sim-code-accordion" style="margin-top: 12px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 14px; font-size: 12px;">
-          <summary style="cursor: pointer; font-weight: 600; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; user-select: none;">
-            <span>💻 View Generated Simulation Code</span>
-            <button id="btn-copy-sim-code" type="button" style="background: transparent; border: none; color: var(--accent-primary); font-size: 11px; cursor: pointer; text-decoration: underline;">Copy Code</button>
-          </summary>
-          <pre id="sim-code-preview" style="margin-top: 10px; background: rgba(0, 0, 0, 0.5); border: 1px solid var(--border-color); border-radius: 6px; padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.4; max-height: 250px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; color: #38bdf8;"></pre>
-        </details>
       </section>
 
       <!-- Error / Fallback Card -->

@@ -94,9 +94,15 @@ export interface SandboxRuntimeErrorMessage {
   currentParams: ParameterState;
 }
 
+export interface SandboxParametersChangedMessage {
+  type: 'SANDBOX_PARAMETERS_CHANGED';
+  params: ParameterState;
+}
+
 export type SandboxToHostMessage =
   | SandboxSimulationReadyMessage
-  | SandboxRuntimeErrorMessage;
+  | SandboxRuntimeErrorMessage
+  | SandboxParametersChangedMessage;
 
 // ==========================================
 // 4. Side Panel Host <-> Service Worker
@@ -169,6 +175,9 @@ export interface EvolutionResponseMessage {
   evolvedCode?: string;
   parameters?: ParameterDefinition[];
   suggestedChips?: any[];
+  versionId?: string;
+  versionIndex?: number;
+  versionLabel?: string;
   errorMessage?: string;
 }
 
@@ -187,6 +196,9 @@ export interface CloudEscalationResponseMessage {
   parameters?: ParameterDefinition[];
   provider?: string;
   modelName?: string;
+  versionId?: string;
+  versionIndex?: number;
+  versionLabel?: string;
   errorMessage?: string;
 }
 

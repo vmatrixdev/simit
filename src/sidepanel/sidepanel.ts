@@ -50,6 +50,14 @@ const cloudEscalateText = document.getElementById('cloud-escalate-text') as HTML
 const evolutionChipsDock = document.getElementById('evolution-chips-dock') as HTMLElement;
 const evolutionChipsList = document.getElementById('evolution-chips-list') as HTMLElement;
 
+const codeTerminalOverlay = document.getElementById('code-terminal-overlay') as HTMLElement;
+const btnToggleCodeTerminal = document.getElementById('btn-toggle-code-terminal') as HTMLButtonElement;
+const btnCopySimCodeInline = document.getElementById('btn-copy-sim-code-inline') as HTMLButtonElement;
+const btnCopyTerminalCode = document.getElementById('btn-copy-terminal-code') as HTMLButtonElement;
+const btnCloseTerminal = document.getElementById('btn-close-terminal') as HTMLButtonElement;
+const btnCloseTerminalDot = document.getElementById('btn-close-terminal-dot') as HTMLElement;
+const terminalCopyText = document.getElementById('terminal-copy-text') as HTMLElement;
+
 const refinementDock = document.getElementById('refinement-dock') as HTMLElement;
 const refinementInput = document.getElementById('refinement-input') as HTMLInputElement;
 const btnRefinementSend = document.getElementById('btn-refinement-send') as HTMLButtonElement;
@@ -78,10 +86,19 @@ const btnSaveSettings = document.getElementById('btn-save-settings') as HTMLButt
 const btnTestConnection = document.getElementById('btn-test-connection') as HTMLButtonElement;
 const settingsStatusMsg = document.getElementById('settings-status-msg') as HTMLElement;
 
+export interface VersionItem {
+  id: string;
+  versionIndex: number;
+  versionLabel: string;
+  code: string;
+  parameters: ParameterDefinition[];
+  parameterState: ParameterState;
+}
+
 // Active Session Cache
 let activeSessionId: string = '';
 let activeVersionIndex: number = 1;
-let currentVersions: { id: string; versionIndex: number; versionLabel: string }[] = [];
+let currentVersions: VersionItem[] = [];
 let currentEvolutionChips: EvolutionChip[] = [];
 let activeCode: string = '';
 let activeParameters: ParameterDefinition[] = [];
@@ -150,12 +167,20 @@ export function renderControlsDock(parameters: ParameterDefinition[], initialPar
     currentParamsState[param.id] = currentVal;
 
     if (param.type === 'slider' || param.type === 'stepper') {
+      const minVal = param.min !== undefined ? param.min : 0;
+      const maxVal = param.max !== undefined ? param.max : 100;
+      const stepVal = param.step !== undefined ? param.step : 1;
+
       row.innerHTML = `
         <div class="control-row-header">
           <span class="control-label">${escapeHtml(param.label)}</span>
           <span class="control-val" id="val-${param.id}">${currentVal} ${param.unit || ''}</span>
         </div>
-        <input type="range" id="input-${param.id}" min="${param.min !== undefined ? param.min : 0}" max="${param.max !== undefined ? param.max : 100}" step="${param.step !== undefined ? param.step : 1}" value="${currentVal}" />
+        <input type="range" id="input-${param.id}" min="${minVal}" max="${maxVal}" step="${stepVal}" value="${currentVal}" />
+        <div class="control-bounds-row">
+          <span class="bound-tag bound-min" id="min-${param.id}" title="Click to edit min bound">${minVal}</span>
+          <span class="bound-tag bound-max" id="max-${param.id}" title="Click to edit max bound">${maxVal}</span>
+        </div>
       `;
       controlsList.appendChild(row);
 
@@ -165,6 +190,56 @@ export function renderControlsDock(parameters: ParameterDefinition[], initialPar
         const val = isNaN(num) ? (e.target as HTMLInputElement).value : num;
         updateParameterValue(param.id, val, param.unit);
       });
+
+      const attachBoundEditor = (tagId: string, isMin: boolean) => {
+        const tag = row.querySelector(`#${tagId}`) as HTMLElement;
+        if (!tag) return;
+        tag.addEventListener('click', () => {
+          if (tag.querySelector('input')) return;
+          const currentBound = isMin ? input.min : input.max;
+          const editInput = document.createElement('input');
+          editInput.type = 'number';
+          editInput.className = 'bound-edit-input';
+          editInput.step = 'any';
+          editInput.value = currentBound;
+          tag.textContent = '';
+          tag.appendChild(editInput);
+          editInput.focus();
+          editInput.select();
+
+          let isCancelled = false;
+          const commit = () => {
+            if (isCancelled) return;
+            const val = parseFloat(editInput.value);
+            if (!isNaN(val)) {
+              if (isMin && val < parseFloat(input.max)) {
+                input.min = String(val);
+                param.min = val;
+                tag.textContent = String(val);
+                return;
+              } else if (!isMin && val > parseFloat(input.min)) {
+                input.max = String(val);
+                param.max = val;
+                tag.textContent = String(val);
+                return;
+              }
+            }
+            tag.textContent = currentBound;
+          };
+
+          editInput.addEventListener('blur', commit);
+          editInput.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') editInput.blur();
+            if (ev.key === 'Escape') {
+              isCancelled = true;
+              tag.textContent = currentBound;
+            }
+          });
+        });
+      };
+
+      attachBoundEditor(`min-${param.id}`, true);
+      attachBoundEditor(`max-${param.id}`, false);
     } else if (param.type === 'toggle') {
       row.className = 'control-row toggle-row';
       row.innerHTML = `
@@ -191,6 +266,25 @@ export function renderControlsDock(parameters: ParameterDefinition[], initialPar
       const select = row.querySelector(`#input-${param.id}`) as HTMLSelectElement;
       select.addEventListener('change', (e) => {
         updateParameterValue(param.id, (e.target as HTMLSelectElement).value);
+      });
+    } else if (param.type === 'button' || (param as any).type === 'action') {
+      row.className = 'control-row button-row';
+      row.innerHTML = `
+        <button class="btn-control-action" id="btn-param-${param.id}" type="button">
+          ${escapeHtml(param.label || param.id)}
+        </button>
+      `;
+      controlsList.appendChild(row);
+
+      const btn = row.querySelector(`#btn-param-${param.id}`) as HTMLButtonElement;
+      btn.addEventListener('click', () => {
+        const updateMsg: SandboxUpdateParametersMessage = {
+          type: 'SANDBOX_UPDATE_PARAMETERS',
+          params: { [param.id]: true }
+        };
+        if (sandboxIframe.contentWindow) {
+          sandboxIframe.contentWindow.postMessage(updateMsg, '*');
+        }
       });
     }
   });
@@ -264,6 +358,10 @@ window.addEventListener('message', (event) => {
     simTitle.textContent = data.title;
     simDesc.textContent = data.description;
     renderControlsDock(data.parameters, currentParamsState);
+  } else if (data.type === 'SANDBOX_PARAMETERS_CHANGED') {
+    if (data.params) {
+      currentParamsState = { ...currentParamsState, ...data.params };
+    }
   } else if (data.type === 'SANDBOX_RUNTIME_ERROR') {
     lastRuntimeError = {
       message: data.message,
@@ -327,20 +425,20 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
         }
         if (message.versionIndex) {
           activeVersionIndex = message.versionIndex;
+          if (message.versionIndex === 1) {
+            currentVersions = [];
+          }
           if (!currentVersions.some((v) => v.versionIndex === message.versionIndex)) {
             currentVersions.push({
-              id: `ver_v${message.versionIndex}`,
+              id: message.versionId || `ver_v${message.versionIndex}`,
               versionIndex: message.versionIndex,
-              versionLabel: message.versionLabel || `v${message.versionIndex}`
+              versionLabel: message.versionLabel || `v${message.versionIndex}`,
+              code: message.code || activeCode,
+              parameters: message.parameters || activeParameters,
+              parameterState: { ...currentParamsState }
             });
           }
           renderVersionScrubber();
-        }
-
-        // Phase 3: Pre-computed Evolution Chips
-        if (message.evolutionChips && message.evolutionChips.length > 0) {
-          currentEvolutionChips = message.evolutionChips;
-          renderEvolutionChips(currentEvolutionChips);
         }
 
         // Phase 3: Cloud Escalation Badge
@@ -491,13 +589,47 @@ document.getElementById('btn-copy-error-code')?.addEventListener('click', () => 
     .catch((err) => console.error('Copy failed:', err));
 });
 
-// Copy Code from Simulation View Details Accordion
+// Toggle Code Terminal Overlay
+btnToggleCodeTerminal?.addEventListener('click', () => {
+  if (!codeTerminalOverlay) return;
+  const isHidden = codeTerminalOverlay.style.display === 'none';
+  codeTerminalOverlay.style.display = isHidden ? 'flex' : 'none';
+  btnToggleCodeTerminal.classList.toggle('active', isHidden);
+  const simCodePreview = document.getElementById('sim-code-preview');
+  if (simCodePreview && isHidden) {
+    simCodePreview.textContent = activeCode;
+  }
+});
+
+const closeTerminal = () => {
+  if (codeTerminalOverlay) codeTerminalOverlay.style.display = 'none';
+  if (btnToggleCodeTerminal) btnToggleCodeTerminal.classList.remove('active');
+};
+btnCloseTerminal?.addEventListener('click', closeTerminal);
+btnCloseTerminalDot?.addEventListener('click', closeTerminal);
+
+const copyActiveCode = async (btnEl?: HTMLElement, labelEl?: HTMLElement) => {
+  if (!activeCode) return;
+  try {
+    await navigator.clipboard.writeText(activeCode);
+    if (labelEl) {
+      const orig = labelEl.textContent;
+      labelEl.textContent = 'Copied!';
+      setTimeout(() => { if (labelEl) labelEl.textContent = orig; }, 2000);
+    } else if (btnEl) {
+      btnEl.style.color = '#10b981';
+      setTimeout(() => { if (btnEl) btnEl.style.color = ''; }, 2000);
+    }
+  } catch (err) {
+    console.error('Copy failed:', err);
+  }
+};
+
+btnCopySimCodeInline?.addEventListener('click', () => copyActiveCode(btnCopySimCodeInline));
+btnCopyTerminalCode?.addEventListener('click', () => copyActiveCode(btnCopyTerminalCode, terminalCopyText));
 document.getElementById('btn-copy-sim-code')?.addEventListener('click', (e) => {
   e.stopPropagation();
-  if (!activeCode) return;
-  navigator.clipboard.writeText(activeCode)
-    .then(() => alert('Simulation code copied to clipboard!'))
-    .catch((err) => console.error('Copy failed:', err));
+  copyActiveCode();
 });
 
 // Retry Generation Button
@@ -706,18 +838,41 @@ function postToSandbox(msg: HostToSandboxMessage) {
 /**
  * Handles 1-click state rollback (0 network calls)
  */
+/**
+ * Handles 1-click state rollback (0 network calls)
+ */
 async function handleVersionRollback(versionId: string, versionIndex: number) {
   if (versionIndex === activeVersionIndex) return;
 
+  // 1. Direct in-memory instant rollback
+  const targetVer = currentVersions.find((v) => v.versionIndex === versionIndex || v.id === versionId);
+  if (targetVer) {
+    activeVersionIndex = targetVer.versionIndex;
+    activeCode = targetVer.code;
+    activeParameters = targetVer.parameters || [];
+    currentParamsState = { ...targetVer.parameterState };
+
+    initSimulationInIframe(activeCode, currentParamsState);
+    renderControlsDock(activeParameters, currentParamsState);
+    renderVersionScrubber();
+
+    const simCodePreview = document.getElementById('sim-code-preview');
+    if (simCodePreview) {
+      simCodePreview.textContent = activeCode;
+    }
+  }
+
+  // 2. Also notify background service worker for session persistence
   if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
     chrome.runtime.sendMessage(
       {
         type: 'VERSION_ROLLBACK_REQUEST',
         sessionId: activeSessionId,
-        targetVersionId: versionId
+        targetVersionId: versionId,
+        versionIndex
       },
       (res: any) => {
-        if (res && res.status === 'ok' && res.version) {
+        if (res && res.status === 'ok' && res.version && !targetVer) {
           activeVersionIndex = versionIndex;
           activeCode = res.version.code;
           activeParameters = res.version.parameters || [];
@@ -738,32 +893,11 @@ async function handleVersionRollback(versionId: string, versionIndex: number) {
 }
 
 /**
- * Renders pre-computed evolution chips (max 4 visible)
+ * Renders pre-computed evolution chips (hidden to maximize simulation space)
  */
-function renderEvolutionChips(chips: EvolutionChip[]) {
-  if (!evolutionChipsDock || !evolutionChipsList) return;
-  if (!chips || chips.length === 0) {
+function renderEvolutionChips(_chips: EvolutionChip[]) {
+  if (evolutionChipsDock) {
     evolutionChipsDock.style.display = 'none';
-    return;
-  }
-
-  evolutionChipsDock.style.display = 'block';
-  evolutionChipsList.innerHTML = '';
-
-  for (const chip of chips) {
-    const chipBtn = document.createElement('button');
-    chipBtn.type = 'button';
-    chipBtn.className = `chip-btn ${chip.actionType === 'parameter_preset' ? 'param-preset' : 'structural'}`;
-    chipBtn.textContent = chip.label;
-    if (chip.description || chip.rationale) {
-      chipBtn.title = chip.description || chip.rationale || '';
-    }
-
-    chipBtn.addEventListener('click', () => {
-      handleChipClick(chip);
-    });
-
-    evolutionChipsList.appendChild(chipBtn);
   }
 }
 
@@ -825,6 +959,34 @@ function handleChipClick(chip: EvolutionChip) {
 function executeRefinement(userMessage: string, chipId?: string) {
   if (!userMessage.trim()) return;
 
+  // Set chat box to readonly and send button to loading
+  if (refinementInput) {
+    refinementInput.readOnly = true;
+  }
+  if (btnRefinementSend) {
+    btnRefinementSend.disabled = true;
+    btnRefinementSend.innerHTML = '<div class="btn-spinner"></div>';
+    btnRefinementSend.title = 'Evolving simulation...';
+  }
+
+  const resetChatInput = (clearText = false) => {
+    if (refinementInput) {
+      refinementInput.readOnly = false;
+      if (clearText) refinementInput.value = '';
+      refinementInput.focus();
+    }
+    if (btnRefinementSend) {
+      btnRefinementSend.disabled = false;
+      btnRefinementSend.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+      `;
+      btnRefinementSend.title = 'Send refinement';
+    }
+  };
+
   if (refinementStatus) {
     refinementStatus.style.display = 'block';
     refinementStatus.style.color = '#38bdf8';
@@ -842,6 +1004,8 @@ function executeRefinement(userMessage: string, chipId?: string) {
     };
 
     chrome.runtime.sendMessage(req, (res: EvolutionResponseMessage) => {
+      resetChatInput(res && res.status === 'ok');
+
       if (!res) {
         if (refinementStatus) {
           refinementStatus.style.color = '#ef4444';
@@ -864,7 +1028,6 @@ function executeRefinement(userMessage: string, chipId?: string) {
             refinementStatus.style.color = '#10b981';
             refinementStatus.textContent = '⚡ Applied parameter tweak directly (0ms LLM overhead).';
           }
-          if (refinementInput) refinementInput.value = '';
           return;
         }
 
@@ -880,7 +1043,6 @@ function executeRefinement(userMessage: string, chipId?: string) {
             refinementStatus.style.color = '#10b981';
             refinementStatus.textContent = '🔄 Parameters reset to defaults.';
           }
-          if (refinementInput) refinementInput.value = '';
           return;
         }
 
@@ -893,18 +1055,17 @@ function executeRefinement(userMessage: string, chipId?: string) {
           initSimulationInIframe(activeCode, currentParamsState);
           renderControlsDock(activeParameters, currentParamsState);
 
-          activeVersionIndex++;
+          activeVersionIndex = res.versionIndex || (activeVersionIndex + 1);
+          const newVerId = res.versionId || `ver_v${activeVersionIndex}_${Date.now()}`;
           currentVersions.push({
-            id: `ver_v${activeVersionIndex}`,
+            id: newVerId,
             versionIndex: activeVersionIndex,
-            versionLabel: `v${activeVersionIndex}`
+            versionLabel: res.versionLabel || `v${activeVersionIndex}`,
+            code: activeCode,
+            parameters: [...activeParameters],
+            parameterState: { ...currentParamsState }
           });
           renderVersionScrubber();
-
-          if (res.suggestedChips) {
-            currentEvolutionChips = res.suggestedChips;
-            renderEvolutionChips(currentEvolutionChips);
-          }
 
           const simCodePreview = document.getElementById('sim-code-preview');
           if (simCodePreview) simCodePreview.textContent = activeCode;
@@ -913,7 +1074,6 @@ function executeRefinement(userMessage: string, chipId?: string) {
             refinementStatus.style.color = '#10b981';
             refinementStatus.textContent = `✨ Evolved to v${activeVersionIndex} successfully!`;
           }
-          if (refinementInput) refinementInput.value = '';
           return;
         }
       }
@@ -923,6 +1083,8 @@ function executeRefinement(userMessage: string, chipId?: string) {
         refinementStatus.textContent = `⚠️ Refinement failed: ${res.errorMessage || 'Unknown error'}`;
       }
     });
+  } else {
+    resetChatInput(false);
   }
 }
 
@@ -973,11 +1135,15 @@ function handleCloudEscalateClick() {
         initSimulationInIframe(activeCode, currentParamsState);
         renderControlsDock(activeParameters, currentParamsState);
 
-        activeVersionIndex++;
+        activeVersionIndex = res.versionIndex || (activeVersionIndex + 1);
+        const newVerId = res.versionId || `ver_v${activeVersionIndex}_${Date.now()}`;
         currentVersions.push({
-          id: `ver_v${activeVersionIndex}`,
+          id: newVerId,
           versionIndex: activeVersionIndex,
-          versionLabel: `v${activeVersionIndex}`
+          versionLabel: res.versionLabel || `v${activeVersionIndex}`,
+          code: activeCode,
+          parameters: [...activeParameters],
+          parameterState: { ...currentParamsState }
         });
         renderVersionScrubber();
 

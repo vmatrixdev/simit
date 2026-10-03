@@ -4,7 +4,7 @@
  * and how dynamic parameters are structured.
  */
 
-export type ParameterType = 'slider' | 'toggle' | 'stepper' | 'select';
+export type ParameterType = 'slider' | 'toggle' | 'stepper' | 'select' | 'button' | 'action';
 
 export interface BaseParameterDefinition {
   id: string;
@@ -41,11 +41,17 @@ export interface SelectParameterDefinition extends BaseParameterDefinition {
   default: string;
 }
 
+export interface ButtonParameterDefinition extends BaseParameterDefinition {
+  type: 'button' | 'action';
+  default?: boolean;
+}
+
 export type ParameterDefinition =
   | SliderParameterDefinition
   | ToggleParameterDefinition
   | StepperParameterDefinition
-  | SelectParameterDefinition;
+  | SelectParameterDefinition
+  | ButtonParameterDefinition;
 
 export type ParameterState = Record<string, number | boolean | string>;
 

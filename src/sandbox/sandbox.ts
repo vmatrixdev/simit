@@ -56,7 +56,113 @@ function cleanupPane() {
   const paneDock = document.getElementById('pane-dock');
   if (paneDock) {
     paneDock.innerHTML = '';
+    paneDock.style.left = '';
+    paneDock.style.top = '';
+    paneDock.style.right = '';
+    paneDock.style.bottom = '';
+    paneDock.classList.remove('is-dragging');
   }
+}
+
+/**
+ * Enables smooth pointer dragging for the floating Tweakpane dock
+ */
+function makeDraggable(paneDock: HTMLElement) {
+  let isDragging = false;
+  let startX = 0;
+  let startY = 0;
+  let initialLeft = 0;
+  let initialTop = 0;
+  let moved = false;
+
+  paneDock.addEventListener('pointerdown', (e: PointerEvent) => {
+    const target = e.target as HTMLElement;
+    const header = target.closest('.tp-rotv_b') as HTMLElement;
+    if (!header) return;
+
+    startX = e.clientX;
+    startY = e.clientY;
+    const rect = paneDock.getBoundingClientRect();
+    initialLeft = rect.left;
+    initialTop = rect.top;
+    moved = false;
+
+    try {
+      header.setPointerCapture(e.pointerId);
+    } catch (_) {}
+
+    const onPointerMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+
+      if (!moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+        moved = true;
+        isDragging = true;
+        paneDock.classList.add('is-dragging');
+      }
+
+      if (isDragging) {
+        let newLeft = initialLeft + dx;
+        let newTop = initialTop + dy;
+
+        const maxLeft = Math.max(0, window.innerWidth - paneDock.offsetWidth);
+        const maxTop = Math.max(0, window.innerHeight - paneDock.offsetHeight);
+
+        newLeft = Math.max(0, Math.min(newLeft, maxLeft));
+        newTop = Math.max(0, Math.min(newTop, maxTop));
+
+        paneDock.style.left = `${newLeft}px`;
+        paneDock.style.top = `${newTop}px`;
+        paneDock.style.right = 'auto';
+        paneDock.style.bottom = 'auto';
+      }
+    };
+
+    const onPointerUp = (ev: PointerEvent) => {
+      try {
+        header.releasePointerCapture(ev.pointerId);
+      } catch (_) {}
+
+      header.removeEventListener('pointermove', onPointerMove as EventListener);
+      header.removeEventListener('pointerup', onPointerUp as EventListener);
+      header.removeEventListener('pointercancel', onPointerUp as EventListener);
+
+      if (isDragging) {
+        paneDock.classList.remove('is-dragging');
+        isDragging = false;
+
+        const blockClick = (clickEv: MouseEvent) => {
+          clickEv.stopPropagation();
+          clickEv.stopImmediatePropagation();
+          clickEv.preventDefault();
+        };
+        header.addEventListener('click', blockClick, { capture: true, once: true });
+        setTimeout(() => {
+          header.removeEventListener('click', blockClick, { capture: true });
+        }, 150);
+      }
+    };
+
+    header.addEventListener('pointermove', onPointerMove as EventListener);
+    header.addEventListener('pointerup', onPointerUp as EventListener);
+    header.addEventListener('pointercancel', onPointerUp as EventListener);
+  });
+
+  window.addEventListener('resize', () => {
+    if (paneDock.style.left) {
+      const rect = paneDock.getBoundingClientRect();
+      const maxLeft = Math.max(0, window.innerWidth - paneDock.offsetWidth);
+      const maxTop = Math.max(0, window.innerHeight - paneDock.offsetHeight);
+      if (rect.left > maxLeft) paneDock.style.left = `${maxLeft}px`;
+      if (rect.top > maxTop) paneDock.style.top = `${maxTop}px`;
+    }
+  });
+}
+
+// Initialize dragging on the pane dock
+const domPaneDock = document.getElementById('pane-dock');
+if (domPaneDock) {
+  makeDraggable(domPaneDock);
 }
 
 // Global error hooks catching unhandled runtime exceptions
@@ -202,8 +308,16 @@ window.addEventListener('message', (event) => {
             const paneDock = document.getElementById('pane-dock');
             activePane = new PaneClass({
               container: paneDock || undefined,
-              title: 'Controls'
+              title: 'Controls',
+              expanded: true
             });
+
+            const notifyHostParams = () => {
+              window.parent?.postMessage({
+                type: 'SANDBOX_PARAMETERS_CHANGED',
+                params: { ...currentParams }
+              }, '*');
+            };
 
             for (const p of paramsDef) {
               if (p.type === 'slider' || p.type === 'stepper') {
@@ -218,6 +332,7 @@ window.addEventListener('message', (event) => {
                   if (activeModule && typeof activeModule.update === 'function') {
                     activeModule.update(currentParams);
                   }
+                  notifyHostParams();
                 });
               } else if (p.type === 'toggle') {
                 activePane.addBinding(currentParams, p.id, {
@@ -228,6 +343,7 @@ window.addEventListener('message', (event) => {
                   if (activeModule && typeof activeModule.update === 'function') {
                     activeModule.update(currentParams);
                   }
+                  notifyHostParams();
                 });
               } else if (p.type === 'select') {
                 const optionsMap: Record<string, string> = {};
@@ -243,8 +359,35 @@ window.addEventListener('message', (event) => {
                   if (activeModule && typeof activeModule.update === 'function') {
                     activeModule.update(currentParams);
                   }
+                  notifyHostParams();
+                });
+              } else if ((p as any).type === 'button' || (p as any).type === 'action') {
+                activePane.addButton({
+                  title: p.label || p.id
+                }).on('click', () => {
+                  if (activeModule && typeof activeModule.update === 'function') {
+                    activeModule.update({ [p.id]: true });
+                  }
                 });
               }
+            }
+
+            const hasConfigurableParams = paramsDef.some(p => p.type === 'slider' || p.type === 'stepper' || p.type === 'toggle' || p.type === 'select');
+            const hasCustomReset = paramsDef.some(p => p.id.toLowerCase().includes('reset') || (p.label && p.label.toLowerCase().includes('reset')));
+            if (hasConfigurableParams && !hasCustomReset) {
+              activePane.addButton({
+                title: '↺ Reset Defaults'
+              }).on('click', () => {
+                Object.assign(currentParams, defaults);
+                window.__currentSimParams = currentParams;
+                if (activePane && typeof activePane.refresh === 'function') {
+                  activePane.refresh();
+                }
+                if (activeModule && typeof activeModule.update === 'function') {
+                  activeModule.update(currentParams);
+                }
+                notifyHostParams();
+              });
             }
           } catch (tpErr) {
             console.warn('[Sandbox] Tweakpane auto-docking warning:', tpErr);
@@ -276,12 +419,22 @@ window.addEventListener('message', (event) => {
     case 'SANDBOX_UPDATE_PARAMETERS': {
       if (!activeModule || typeof activeModule.update !== 'function') return;
       try {
-        currentParams = { ...currentParams, ...(data.params || {}) };
+        const delta = data.params || {};
+        currentParams = { ...currentParams, ...delta };
         window.__currentSimParams = currentParams;
         if (activePane && typeof activePane.refresh === 'function') {
           activePane.refresh();
         }
-        activeModule.update(currentParams);
+        activeModule.update({ ...currentParams, ...delta });
+
+        // Clean up transient button actions from persistent state
+        if (activeModule.parameters) {
+          for (const p of activeModule.parameters) {
+            if ((p as any).type === 'button' || (p as any).type === 'action') {
+              delete currentParams[p.id];
+            }
+          }
+        }
       } catch (err: any) {
         const errorMsg: SandboxToHostMessage = {
           type: 'SANDBOX_RUNTIME_ERROR',
