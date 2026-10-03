@@ -87,169 +87,125 @@ const btnTestConnection = document.getElementById('btn-test-connection') as HTML
 const settingsStatusMsg = document.getElementById('settings-status-msg') as HTMLElement;
 
 export const WELCOME_SIMULATION_CODE = `export default {
-  title: "SimIt Autonomous Agent Loop",
-  description: "Interactive visualizer explaining SimIt's zero-prompt architecture: context harvesting, prompt assembly, model routing, offscreen verification, and 1-shot self-repair.",
+  title: "SimIt: Highlight to Interactive Reality",
+  description: "Watch a human reader highlight technical text on a webpage and click SimIt. See the agent loop convert it into a live 60 FPS simulation. Pan & zoom across the journey!",
   parameters: [
-    { id: "stage", label: "Pipeline Stage", type: "slider", min: 1, max: 6, step: 1, default: 1 },
-    { id: "autoPlay", label: "Auto Cycle Loop", type: "toggle", default: true },
-    { id: "speed", label: "Flow Velocity", type: "slider", min: 0.5, max: 3.0, step: 0.1, default: 1.0, unit: "x" },
-    { id: "engine", label: "Model Engine", type: "select", options: ["Gemini Nano ($0)", "Claude 3.5 Sonnet", "Gemini 2.0 Flash", "Ollama Local"], default: "Gemini Nano ($0)" },
-    { id: "testRepair", label: "⚡ Demo 1-Shot Repair", type: "button" }
+    { id: "viewMode", label: "Camera View", type: "select", options: ["Auto-Tour", "Overview (All)", "1. Boring Webpage", "2. Agent Loop", "3. Live Payoff Sim"], default: "Auto-Tour" },
+    { id: "speed", label: "Story Velocity", type: "slider", min: 0.5, max: 2.5, step: 0.1, default: 1.0, unit: "x" },
+    { id: "gamma", label: "Payoff Chaos (γ)", type: "slider", min: 0.1, max: 0.65, step: 0.01, default: 0.37 },
+    { id: "resetJourney", label: "↺ Restart Story", type: "button" }
   ],
   init(container, params) {
     this.container = container;
     this.params = { ...params };
-    this.currentStage = Math.round(params.stage || 1);
-    this.stageTimer = 0;
-    this.repairAnimTimer = 0;
-    this.packets = [];
+    this.viewMode = params.viewMode || "Auto-Tour";
 
-    // Stages definition
-    this.stages = [
-      {
-        num: 1,
-        title: "Context Harvester",
-        icon: "📄",
-        desc: "Extracts selection, math formulas, and nearby DOM headings from tab.",
-        tag: "Input Scope",
-        formula: "\\\\mathcal{L}_{\\\\text{sim}} = \\\\int f(x, \\\\dot{x}) dt",
-        contract: "HarvestedContext { selection, mathSnippets, domContext }"
-      },
-      {
-        num: 2,
-        title: "Archetype Triage",
-        icon: "🧠",
-        desc: "Autonomous classification: Parameter Explorer, Step Scrubber, or Graph.",
-        tag: "Deduction",
-        formula: "\\\\mathcal{T} = \\\\arg\\\\max_A P(A \\\\mid \\\\text{Context})",
-        contract: "classifyArchetype(context) -> ArchetypeTriageResult"
-      },
-      {
-        num: 3,
-        title: "Prompt Composer",
-        icon: "📐",
-        desc: "Injects dynamic viewport (W x H) and decouples reasoning tags.",
-        tag: "AST Assembly",
-        formula: "W \\\\ge 320\\\\text{px}, H \\\\ge 380\\\\text{px}",
-        contract: "<simulation_thinking> ... </simulation_thinking>"
-      },
-      {
-        num: 4,
-        title: "Model Engine Router",
-        icon: "⚡",
-        desc: "Zero-cost on-device Gemini Nano with seamless BYOK frontier fallback.",
-        tag: "Inference",
-        formula: "\\\\text{Latency} \\\\approx 800\\\\text{ms} \\\\quad (\\\\$0.00)",
-        contract: "provider.generateSimulation(systemPrompt, userPrompt)"
-      },
-      {
-        num: 5,
-        title: "Offscreen Verification",
-        icon: "🧪",
-        desc: "100ms headless smoke test, CSP sandboxing & automated 1-shot self-repair.",
-        tag: "Pre-Flight",
-        formula: "\\\\text{Status} = \\\\text{PASS} \\\\iff \\\\Delta t \\\\le 100\\\\text{ms}",
-        contract: "executePreFlightRepairLoop(code, offscreenHarness)"
-      },
-      {
-        num: 6,
-        title: "Side Panel Runtime",
-        icon: "🚀",
-        desc: "60 FPS declarative execution, 0ms Tweakpane sliders, and v1-v3 evolution.",
-        tag: "Reactive Host",
-        formula: "\\\\Delta t_{\\\\text{slider}} = 0\\\\text{ms (Direct)}",
-        contract: "activeModule.init(simRoot, params) + Tweakpane"
-      }
-    ];
+    // Virtual world coordinates (widescreen canvas)
+    this.worldW = 1080;
+    this.worldH = 540;
 
-    // Main wrapper
-    const root = document.createElement('div');
-    root.style.cssText = 'position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; background: radial-gradient(circle at 50% 25%, #0b1328 0%, #040711 100%); user-select: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;';
-    container.appendChild(root);
-    this.root = root;
+    // Camera state
+    this.camX = 0;
+    this.camTargetX = 0;
+    this.camZoom = 1.0;
+    this.camTargetZoom = 1.0;
+    this.userInteractingTimer = 0;
 
-    // Canvas background for wiring and flowing energy packets
+    // Timeline state
+    this.storyTime = 0;
+    this.loopDuration = 18.0;
+
+    // Duffing oscillator payoff state (Act 3)
+    this.payoff = {
+      x: 0.6,
+      v: 0.0,
+      t: 0.0,
+      history: []
+    };
+
+    // Flowing energy packets between acts
+    this.streamPackets = [];
+
+    // Drag-to-pan state on canvas
+    this.isDragging = false;
+    this.dragStartX = 0;
+    this.dragStartCamX = 0;
+
+    // Setup Canvas
     const canvas = document.createElement('canvas');
-    canvas.style.cssText = 'position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1;';
-    root.appendChild(canvas);
+    canvas.style.cssText = 'position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: #030712; cursor: grab; user-select: none;';
+    container.appendChild(canvas);
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
 
-    // Overlay for stages
-    const stagesContainer = document.createElement('div');
-    stagesContainer.style.cssText = 'position: relative; z-index: 2; flex: 1; display: flex; flex-direction: column; justify-content: space-evenly; padding: 14px 16px 8px 16px; overflow-y: auto;';
-    root.appendChild(stagesContainer);
-    this.stagesContainer = stagesContainer;
+    // Pointer event handlers for direct pan, chapter pills, and mass perturbation
+    canvas.addEventListener('pointerdown', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const px = e.clientX - rect.left;
+      const py = e.clientY - rect.top;
 
-    // Render Stage Cards
-    this.stageElements = [];
-    this.stages.forEach((st) => {
-      const card = document.createElement('div');
-      card.style.cssText = 'display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(56, 189, 248, 0.15); backdrop-filter: blur(8px); cursor: pointer; transition: all 0.25s ease; position: relative;';
-
-      const iconBox = document.createElement('div');
-      iconBox.style.cssText = 'width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 15px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.25); flex-shrink: 0;';
-      iconBox.textContent = st.icon;
-
-      const infoBox = document.createElement('div');
-      infoBox.style.cssText = 'flex: 1; min-width: 0;';
-
-      const titleRow = document.createElement('div');
-      titleRow.style.cssText = 'display: flex; align-items: center; justify-content: space-between; gap: 6px;';
-
-      const title = document.createElement('span');
-      title.style.cssText = 'font-size: 12px; font-weight: 600; color: #f8fafc;';
-      title.textContent = \`\${st.num}. \${st.title}\`;
-
-      const tag = document.createElement('span');
-      tag.style.cssText = 'font-size: 9.5px; font-family: ui-monospace, monospace; padding: 2px 6px; border-radius: 4px; background: rgba(56, 189, 248, 0.12); color: #38bdf8;';
-      tag.textContent = st.tag;
-
-      titleRow.appendChild(title);
-      titleRow.appendChild(tag);
-
-      const desc = document.createElement('div');
-      desc.style.cssText = 'font-size: 10.5px; color: #94a3b8; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
-      desc.textContent = st.desc;
-
-      infoBox.appendChild(titleRow);
-      infoBox.appendChild(desc);
-
-      card.appendChild(iconBox);
-      card.appendChild(infoBox);
-
-      card.addEventListener('pointerenter', () => {
-        card.style.borderColor = 'rgba(56, 189, 248, 0.5)';
-        card.style.transform = 'translateX(4px)';
-      });
-      card.addEventListener('pointerleave', () => {
-        if (this.currentStage !== st.num) {
-          card.style.borderColor = 'rgba(56, 189, 248, 0.15)';
-          card.style.transform = 'none';
+      // Check if user clicked bottom chapter nav pills (fixed screen coordinates)
+      const pillY = this.h - 38;
+      if (py >= pillY - 6 && py <= pillY + 28) {
+        const pillW = Math.min(78, (this.w - 30) / 4);
+        const startX = 12;
+        for (let i = 0; i < 4; i++) {
+          const bx = startX + i * (pillW + 4);
+          if (px >= bx && px <= bx + pillW) {
+            const modes = ["1. Boring Webpage", "2. Agent Loop", "3. Live Payoff Sim", "Overview (All)"];
+            this.viewMode = modes[i];
+            this.userInteractingTimer = 6.0;
+            return;
+          }
         }
-      });
-      card.addEventListener('click', () => {
-        this.currentStage = st.num;
-        this.stageTimer = 0;
-        this.updateInspector();
-      });
+      }
 
-      stagesContainer.appendChild(card);
-      this.stageElements.push(card);
+      // Check if user clicked inside Act 3 simulation to perturb Duffing oscillator
+      const worldPx = this.camX + px / this.camZoom;
+      const worldPy = (py - Math.max(0, (this.h - this.worldH * this.camZoom) / 2)) / this.camZoom;
+      if (worldPx >= 750 && worldPx <= 1050 && worldPy >= 90 && worldPy <= 350) {
+        const normX = ((worldPx - 900) / 110) * 2.5;
+        const normV = -((worldPy - 220) / 100) * 2.5;
+        this.payoff.x = Math.max(-2.2, Math.min(2.2, normX));
+        this.payoff.v = Math.max(-2.5, Math.min(2.5, normV));
+        this.payoff.history = [];
+        return;
+      }
+
+      // Start drag-to-pan across widescreen canvas
+      this.isDragging = true;
+      this.dragStartX = px;
+      this.dragStartCamX = this.camX;
+      this.userInteractingTimer = 5.0;
+      canvas.style.cursor = 'grabbing';
+      try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
     });
 
-    // Bottom Inspector / HUD Banner
-    const inspector = document.createElement('div');
-    inspector.style.cssText = 'margin: 6px 14px 10px 14px; padding: 10px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(56, 189, 248, 0.3); backdrop-filter: blur(10px); z-index: 3; display: flex; flex-direction: column; gap: 6px;';
-    root.appendChild(inspector);
-    this.inspector = inspector;
+    canvas.addEventListener('pointermove', (e) => {
+      if (!this.isDragging) return;
+      const rect = canvas.getBoundingClientRect();
+      const px = e.clientX - rect.left;
+      const dx = (px - this.dragStartX) / this.camZoom;
+      const maxCamX = Math.max(0, this.worldW - this.w / this.camZoom);
+      this.camTargetX = Math.max(0, Math.min(maxCamX, this.dragStartCamX - dx));
+      this.camX = this.camTargetX;
+    });
 
-    // Resize handler
+    const endDrag = (e) => {
+      if (!this.isDragging) return;
+      this.isDragging = false;
+      canvas.style.cursor = 'grab';
+      try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+    };
+    canvas.addEventListener('pointerup', endDrag);
+    canvas.addEventListener('pointercancel', endDrag);
+
+    // Resize handling with DPR scaling
     const resize = () => {
       const rect = container.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
       this.w = rect.width || 360;
-      this.h = rect.height || 480;
+      this.h = rect.height || 540;
       canvas.width = this.w * dpr;
       canvas.height = this.h * dpr;
       this.ctx.resetTransform?.();
@@ -259,13 +215,10 @@ export const WELCOME_SIMULATION_CODE = `export default {
     this.ro = new ResizeObserver(resize);
     this.ro.observe(container);
 
-    // Initial inspector render
-    this.updateInspector();
-
     // 60 FPS animation loop
     let lastTime = performance.now();
     const loop = (t) => {
-      const dt = Math.min(0.05, (t - lastTime) / 1000);
+      const dt = Math.min(0.04, (t - lastTime) / 1000);
       lastTime = t;
       this.stepSimulation(dt);
       this.draw();
@@ -274,85 +227,84 @@ export const WELCOME_SIMULATION_CODE = `export default {
     this.raf = requestAnimationFrame(loop);
   },
 
-  updateInspector() {
-    const st = this.stages[this.currentStage - 1];
-    if (!st || !this.inspector) return;
-
-    // Update active card visual
-    this.stageElements.forEach((card, idx) => {
-      const active = (idx + 1) === this.currentStage;
-      card.style.borderColor = active ? '#38bdf8' : 'rgba(56, 189, 248, 0.15)';
-      card.style.background = active ? 'rgba(56, 189, 248, 0.12)' : 'rgba(15, 23, 42, 0.65)';
-      card.style.boxShadow = active ? '0 0 14px rgba(56, 189, 248, 0.25)' : 'none';
-      card.style.transform = active ? 'translateX(4px)' : 'none';
-    });
-
-    // Inspector Content with KaTeX Math typesetting
-    this.inspector.innerHTML = \`
-      <div style="display: flex; align-items: center; justify-content: space-between;">
-        <div style="display: flex; align-items: center; gap: 6px;">
-          <span style="font-size: 13px;">\${st.icon}</span>
-          <span style="font-size: 11.5px; font-weight: 600; color: #f8fafc;">Stage \${st.num}: \${st.title}</span>
-        </div>
-        <span style="font-size: 10px; color: #38bdf8; font-family: ui-monospace, monospace;">\${st.contract.split(' ')[0]}</span>
-      </div>
-      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-        <span style="font-size: 10.5px; color: #94a3b8; flex: 1;">\${st.desc}</span>
-        <div id="inspector-katex-slot" style="font-size: 11px; color: #38bdf8; background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(56,189,248,0.2);"></div>
-      </div>
-    \`;
-
-    const katexSlot = this.inspector.querySelector('#inspector-katex-slot');
-    if (katexSlot && st.formula) {
-      if (window.katex && typeof window.katex.render === 'function') {
-        try {
-          window.katex.render(st.formula, katexSlot, { throwOnError: false });
-        } catch {
-          katexSlot.textContent = st.formula;
-        }
-      } else {
-        katexSlot.textContent = st.formula;
-      }
-    }
-  },
-
-  triggerCrashDemo() {
-    this.repairAnimTimer = 2.5;
-    this.currentStage = 5;
-    this.updateInspector();
-  },
-
   stepSimulation(dt) {
     const spd = this.params.speed || 1.0;
-    this.stageTimer += dt * spd;
+    this.storyTime = (this.storyTime + dt * spd) % this.loopDuration;
 
-    // Auto cycle stages
-    if (this.params.autoAdvance && this.stageTimer > 3.0) {
-      this.stageTimer = 0;
-      this.currentStage = (this.currentStage % 6) + 1;
-      this.updateInspector();
+    if (this.userInteractingTimer > 0) {
+      this.userInteractingTimer -= dt;
     }
 
-    if (this.repairAnimTimer > 0) {
-      this.repairAnimTimer = Math.max(0, this.repairAnimTimer - dt);
+    // Determine camera target based on viewMode or Auto-Tour
+    const maxCamX = Math.max(0, this.worldW - this.w / (this.camZoom || 1.0));
+    if (this.viewMode === "Overview (All)") {
+      this.camTargetX = 0;
+      this.camTargetZoom = Math.min(1.0, (this.w - 16) / this.worldW);
+    } else if (this.viewMode === "1. Boring Webpage") {
+      this.camTargetX = 0;
+      this.camTargetZoom = 1.0;
+    } else if (this.viewMode === "2. Agent Loop") {
+      this.camTargetX = Math.min(maxCamX, 360);
+      this.camTargetZoom = 1.0;
+    } else if (this.viewMode === "3. Live Payoff Sim") {
+      this.camTargetX = Math.min(maxCamX, 720);
+      this.camTargetZoom = 1.0;
+    } else {
+      // Auto-Tour mode: smoothly glide camera as story unfolds
+      this.camTargetZoom = 1.0;
+      if (this.userInteractingTimer <= 0) {
+        if (this.storyTime < 6.8) {
+          this.camTargetX = 0;
+        } else if (this.storyTime < 10.2) {
+          this.camTargetX = Math.min(maxCamX, 360);
+        } else {
+          this.camTargetX = Math.min(maxCamX, 720);
+        }
+      }
     }
 
-    // Spawn packets moving between stages
-    if (Math.random() < 0.25 * spd) {
-      this.packets.push({
-        from: this.currentStage,
-        to: (this.currentStage % 6) + 1,
+    // Smooth camera damping
+    this.camX += (this.camTargetX - this.camX) * Math.min(1.0, dt * 5.0);
+    this.camZoom += (this.camTargetZoom - this.camZoom) * Math.min(1.0, dt * 5.0);
+
+    // Duffing chaotic oscillator numerical integration (Act 3 Payoff)
+    // d2x/dt2 + delta*dx/dt - x + x^3 = gamma * cos(omega * t)
+    const delta = 0.25;
+    const gamma = this.params.gamma !== undefined ? this.params.gamma : 0.37;
+    const omega = 1.2;
+    const substeps = 4;
+    const subDt = (dt * spd) / substeps;
+
+    for (let s = 0; s < substeps; s++) {
+      const force = this.payoff.x - Math.pow(this.payoff.x, 3) - delta * this.payoff.v + gamma * Math.cos(omega * this.payoff.t);
+      this.payoff.v += force * subDt;
+      this.payoff.x += this.payoff.v * subDt;
+      this.payoff.t += subDt;
+    }
+
+    // Record trajectory history
+    this.payoff.history.push({ x: this.payoff.x, v: this.payoff.v });
+    if (this.payoff.history.length > 260) {
+      this.payoff.history.shift();
+    }
+
+    // Stream energy packets across pipeline during and after harvest
+    if (this.storyTime >= 6.4 && Math.random() < 0.35 * spd) {
+      this.streamPackets.push({
+        x: 270,
+        y: 280,
+        stage: 1,
         progress: 0,
-        speed: (0.45 + Math.random() * 0.35) * spd,
-        color: this.currentStage === 5 ? '#a855f7' : '#38bdf8'
+        speed: (0.45 + Math.random() * 0.4) * spd,
+        color: Math.random() > 0.5 ? '#38bdf8' : '#a855f7'
       });
     }
 
-    for (let i = this.packets.length - 1; i >= 0; i--) {
-      const p = this.packets[i];
+    for (let i = this.streamPackets.length - 1; i >= 0; i--) {
+      const p = this.streamPackets[i];
       p.progress += dt * p.speed;
       if (p.progress >= 1.0) {
-        this.packets.splice(i, 1);
+        this.streamPackets.splice(i, 1);
       }
     }
   },
@@ -360,98 +312,624 @@ export const WELCOME_SIMULATION_CODE = `export default {
   draw() {
     const { ctx, w, h } = this;
     if (!ctx || !w || !h) return;
+
     ctx.clearRect(0, 0, w, h);
 
-    // Calculate node anchor positions
-    const positions = this.stageElements.map((el) => {
-      const r = el.getBoundingClientRect();
-      const parentR = this.root.getBoundingClientRect();
-      return {
-        x: r.left - parentR.left + 22,
-        y: r.top - parentR.top + r.height / 2
-      };
-    });
+    // Subtle starry space background
+    const bgGrad = ctx.createLinearGradient(0, 0, w, h);
+    bgGrad.addColorStop(0, '#040714');
+    bgGrad.addColorStop(1, '#02040a');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, w, h);
 
-    if (positions.length < 6) return;
+    // Apply Virtual Camera Transform
+    ctx.save();
+    const offsetY = Math.max(0, (h - this.worldH * this.camZoom) / 2);
+    ctx.translate(-this.camX * this.camZoom, offsetY);
+    ctx.scale(this.camZoom, this.camZoom);
 
-    // Draw connecting bus lines
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.15)';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([3, 4]);
-    ctx.beginPath();
-    for (let i = 0; i < positions.length - 1; i++) {
-      const p1 = positions[i];
-      const p2 = positions[i + 1];
-      ctx.moveTo(p1.x, p1.y);
-      ctx.lineTo(p2.x, p2.y);
+    // Draw panoramic grid & connecting conduits
+    this.drawPanoramicConduits(ctx);
+
+    // ACT 1: The Boring Webpage & Human Reader (x: 20 to 340)
+    this.drawAct1BoringWebpage(ctx);
+
+    // ACT 2: The Agent Loop Pipeline (x: 360 to 720)
+    this.drawAct2AgentLoop(ctx);
+
+    // ACT 3: The Live Payoff Simulation (x: 740 to 1060)
+    this.drawAct3PayoffSimulation(ctx);
+
+    ctx.restore();
+
+    // Draw Screen-Space HUD (pinned to view for immediate feedback)
+    this.drawScreenHUD(ctx);
+  },
+
+  drawPanoramicConduits(ctx) {
+    // Subtle background circuit grid
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.04)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= this.worldW; x += 40) {
+      ctx.beginPath();
+      ctx.moveTo(x, 20);
+      ctx.lineTo(x, this.worldH - 20);
+      ctx.stroke();
     }
-    // Loop back from stage 6 to stage 1
-    const pLast = positions[positions.length - 1];
-    const pFirst = positions[0];
-    ctx.moveTo(pLast.x, pLast.y);
-    ctx.bezierCurveTo(pLast.x - 30, pLast.y + 20, pFirst.x - 30, pFirst.y - 20, pFirst.x, pFirst.y);
+
+    // Glowing data conduit connecting Act 1 -> Act 2 -> Act 3
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.2)';
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([4, 6]);
+    ctx.beginPath();
+    ctx.moveTo(330, 275);
+    ctx.bezierCurveTo(360, 275, 370, 160, 420, 160);
+    ctx.lineTo(670, 160);
+    ctx.bezierCurveTo(710, 160, 720, 275, 750, 275);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Draw active aura behind current stage
-    const activePos = positions[this.currentStage - 1];
-    if (activePos) {
-      const isRepairing = this.repairAnimTimer > 0;
-      const auraColor = isRepairing ? 'rgba(244, 63, 94, 0.45)' : 'rgba(56, 189, 248, 0.35)';
-      const grad = ctx.createRadialGradient(activePos.x, activePos.y, 4, activePos.x, activePos.y, 35);
-      grad.addColorStop(0, auraColor);
-      grad.addColorStop(1, 'transparent');
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(activePos.x, activePos.y, 35, 0, Math.PI * 2);
-      ctx.fill();
-
-      if (isRepairing) {
-        ctx.fillStyle = '#f43f5e';
-        ctx.font = '600 11px system-ui';
-        ctx.fillText('⚡ 1-SHOT SELF-REPAIR ACTIVE (AST PATCH APPLIED)', activePos.x + 30, activePos.y - 12);
-      }
-    }
-
-    // Draw flowing energy packets
-    this.packets.forEach((p) => {
-      const p1 = positions[p.from - 1];
-      const p2 = positions[p.to - 1];
-      if (!p1 || !p2) return;
-
-      let curX, curY;
-      if (p.from === 6 && p.to === 1) {
-        // Curve along loop-back
-        const t = p.progress;
-        const cx1 = p1.x - 30, cy1 = p1.y + 20;
-        const cx2 = p2.x - 30, cy2 = p2.y - 20;
-        curX = (1 - t) ** 3 * p1.x + 3 * (1 - t) ** 2 * t * cx1 + 3 * (1 - t) * t ** 2 * cx2 + t ** 3 * p2.x;
-        curY = (1 - t) ** 3 * p1.y + 3 * (1 - t) ** 2 * t * cy1 + 3 * (1 - t) * t ** 2 * cy2 + t ** 3 * p2.y;
+    // Draw flowing energy packets along conduit
+    this.streamPackets.forEach((p) => {
+      const t = p.progress;
+      let px, py;
+      if (t < 0.2) {
+        const lt = t / 0.2;
+        px = 330 + (420 - 330) * lt;
+        py = 275 + (160 - 275) * lt;
+      } else if (t < 0.8) {
+        const lt = (t - 0.2) / 0.6;
+        px = 420 + (670 - 420) * lt;
+        py = 160;
       } else {
-        curX = p1.x + (p2.x - p1.x) * p.progress;
-        curY = p1.y + (p2.y - p1.y) * p.progress;
+        const lt = (t - 0.8) / 0.2;
+        px = 670 + (750 - 670) * lt;
+        py = 160 + (275 - 160) * lt;
       }
 
       ctx.fillStyle = p.color;
       ctx.shadowColor = p.color;
-      ctx.shadowBlur = 8;
+      ctx.shadowBlur = 10;
       ctx.beginPath();
-      ctx.arc(curX, curY, 3, 0, Math.PI * 2);
+      ctx.arc(px, py, 3.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
     });
   },
 
+  drawAct1BoringWebpage(ctx) {
+    const t = this.storyTime;
+
+    // Browser Window Container
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+    ctx.lineWidth = 1.5;
+    this.roundRect(ctx, 20, 40, 320, 450, 12, true, true);
+
+    // Browser Header & URL bar
+    ctx.fillStyle = 'rgba(30, 41, 59, 0.8)';
+    this.roundRect(ctx, 20, 40, 320, 42, 12, true, false);
+
+    // Window controls dots (macOS style)
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath(); ctx.arc(36, 61, 4.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath(); ctx.arc(50, 61, 4.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#10b981';
+    ctx.beginPath(); ctx.arc(64, 61, 4.5, 0, Math.PI * 2); ctx.fill();
+
+    // URL bar
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
+    this.roundRect(ctx, 80, 50, 245, 22, 5, true, false);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.fillText('🔒 arxiv.org/abs/2403.01892', 90, 65);
+
+    // Document Content Canvas Area (Academic Paper)
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(21, 82, 318, 407);
+    ctx.clip();
+
+    // Lazy boring scrolling offset
+    const scrollY = Math.sin(t * 0.9) * 16 + Math.min(20, t * 3.5);
+
+    // Paper background
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(21, 82, 318, 407);
+
+    // Academic Paper Content
+    ctx.translate(0, -scrollY);
+
+    // Paper Header
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.fillText('Nonlinear Dynamics in Forced Oscillators', 35, 118);
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = 'italic 9.5px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.fillText('A. Poincare, E. Lorenz • Dept. of Dynamical Systems', 35, 134);
+
+    // Abstract label
+    ctx.fillStyle = '#334155';
+    ctx.font = 'bold 10px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.fillText('Abstract & Governing Equations', 35, 156);
+
+    // Boring gray text lines
+    ctx.fillStyle = '#475569';
+    ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.fillText('In classical mechanics, the forced bistable oscillator exhibits', 35, 174);
+    ctx.fillText('bifurcations leading to chaotic orbits across dual potential wells.', 35, 190);
+    ctx.fillText('The state is governed by the second-order nonlinear equation:', 35, 206);
+
+    // Dense Equation Block
+    ctx.fillStyle = '#e2e8f0';
+    this.roundRect(ctx, 35, 220, 290, 48, 6, true, false);
+
+    // Displayed Equation: x'' + δ x' - x + x³ = γ cos(ω t)
+    ctx.fillStyle = '#0f172a';
+    ctx.font = 'bold 13px "Times New Roman", Times, serif';
+    ctx.fillText('ẍ + δ ẋ - x + x³ = γ cos(ω t)', 92, 248);
+
+    ctx.fillStyle = '#475569';
+    ctx.font = '10px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.fillText('where δ represents damping, and γ is external driving force.', 35, 288);
+    ctx.fillText('Under critical periodic forcing, orbits form strange attractors.', 35, 304);
+    ctx.fillText('Numerical simulation reveals fractal basin boundaries in phase space.', 35, 320);
+
+    // Highlighting Effect (t >= 3.6s)
+    let highlightProgress = 0;
+    if (t >= 3.6 && t < 16.0) {
+      highlightProgress = Math.min(1.0, (t - 3.6) / 1.4);
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.28)';
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.85)';
+      ctx.lineWidth = 1;
+      const hw = 260 * highlightProgress;
+      this.roundRect(ctx, 50, 230, hw, 30, 4, true, true);
+
+      // Shimmering spark particles on highlight
+      if (highlightProgress > 0.3) {
+        ctx.fillStyle = '#38bdf8';
+        for (let s = 0; s < 4; s++) {
+          const sx = 50 + (hw * (0.2 + s * 0.25)) % hw;
+          const sy = 235 + Math.sin(t * 8 + s) * 8;
+          ctx.beginPath();
+          ctx.arc(sx, sy, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    ctx.restore();
+
+    // Mouse Cursor Coordinates
+    let cursorX = 300;
+    let cursorY = 400;
+    let isClicking = false;
+
+    if (t < 2.6) {
+      // Lazy resting cursor
+      cursorX = 290 + Math.sin(t * 1.5) * 8;
+      cursorY = 380 + Math.cos(t * 1.5) * 8;
+    } else if (t < 3.6) {
+      // Moving cursor to equation
+      const p = (t - 2.6) / 1.0;
+      const easeP = 0.5 - 0.5 * Math.cos(Math.PI * p);
+      cursorX = 290 + (50 - 290) * easeP;
+      cursorY = 380 + (245 - 380) * easeP;
+    } else if (t < 5.0) {
+      // Dragging selection across text
+      const p = (t - 3.6) / 1.4;
+      cursorX = 50 + 260 * p;
+      cursorY = 245;
+      isClicking = true;
+    } else if (t < 5.8) {
+      // Right-click action & pause
+      cursorX = 210;
+      cursorY = 245;
+    } else if (t < 6.8) {
+      // Moving down context menu to "SimIt ✦"
+      const p = Math.min(1.0, (t - 5.8) / 0.6);
+      cursorX = 210 + (235 - 210) * p;
+      cursorY = 245 + (318 - 245) * p;
+      if (t >= 6.4) {
+        isClicking = true;
+      }
+    } else {
+      // Post-click resting
+      cursorX = 235;
+      cursorY = 318;
+    }
+
+    // Chrome Dark-Mode Context Menu (t >= 5.2s && t < 7.0s)
+    if (t >= 5.2 && t < 7.0) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.6)';
+      ctx.shadowBlur = 18;
+      ctx.shadowOffsetY = 8;
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+      ctx.lineWidth = 1;
+      this.roundRect(ctx, 160, 240, 160, 94, 8, true, true);
+      ctx.shadowBlur = 0;
+
+      // Menu Item 1: Copy
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '11px -apple-system, sans-serif';
+      ctx.fillText('📋  Copy Selection', 174, 260);
+
+      // Menu Item 2: Search
+      ctx.fillText('🔍  Search Web', 174, 280);
+
+      // Divider
+      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+      ctx.beginPath(); ctx.moveTo(165, 292); ctx.lineTo(315, 292); ctx.stroke();
+
+      // Menu Item 3: "SimIt ✦" (Highlighted in radiant cyan)
+      const hoverSimIt = t >= 5.8;
+      if (hoverSimIt) {
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.22)';
+        this.roundRect(ctx, 165, 298, 150, 28, 5, true, false);
+      }
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 12px -apple-system, sans-serif';
+      ctx.fillText('✨  SimIt ✦', 174, 317);
+
+      // Click ripple effect on "SimIt ✦"
+      if (t >= 6.4) {
+        const rippleP = (t - 6.4) / 0.4;
+        ctx.strokeStyle = \`rgba(56, 189, 248, \${1.0 - rippleP})\`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(235, 318, 18 * rippleP, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // Draw realistic OS Mouse Cursor
+    this.drawCursor(ctx, cursorX, cursorY, isClicking);
+
+    // Section Badge
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 11px -apple-system, sans-serif';
+    ctx.fillText('1. Human Highlight & SimIt Click', 30, 30);
+  },
+
+  drawAct2AgentLoop(ctx) {
+    const t = this.storyTime;
+
+    // Station Hubs Container
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.2)';
+    ctx.lineWidth = 1;
+    this.roundRect(ctx, 370, 40, 340, 450, 12, true, true);
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 11px -apple-system, sans-serif';
+    ctx.fillText('2. Autonomous Agent Loop Pipeline', 380, 30);
+
+    // 4 Pipeline Stage Cards
+    const stages = [
+      {
+        num: "A",
+        title: "Context Harvester",
+        icon: "🌾",
+        desc: "Extracts selection, math formulas & DOM headings",
+        badge: "Harvested",
+        active: t >= 6.8
+      },
+      {
+        num: "B",
+        title: "Archetype Triage",
+        icon: "🧠",
+        desc: "Autonomous: Parameter Explorer (Attractor)",
+        badge: "Confidence 98.4%",
+        active: t >= 7.6
+      },
+      {
+        num: "C",
+        title: "Gemini Nano / Gemma",
+        icon: "⚡",
+        desc: "Zero-cost on-device module synthesis",
+        badge: "450ms • $0.00",
+        active: t >= 8.5
+      },
+      {
+        num: "D",
+        title: "Offscreen Verification",
+        icon: "🧪",
+        desc: "100ms headless smoke test & 1-shot self-repair",
+        badge: "PASS (42ms) ✓",
+        active: t >= 9.4
+      }
+    ];
+
+    stages.forEach((st, i) => {
+      const cy = 60 + i * 102;
+      const isActive = st.active;
+
+      ctx.fillStyle = isActive ? 'rgba(56, 189, 248, 0.12)' : 'rgba(15, 23, 42, 0.85)';
+      ctx.strokeStyle = isActive ? '#38bdf8' : 'rgba(56, 189, 248, 0.15)';
+      ctx.lineWidth = isActive ? 1.5 : 1;
+      this.roundRect(ctx, 385, cy, 310, 86, 8, true, true);
+
+      // Icon box
+      ctx.fillStyle = isActive ? 'rgba(56, 189, 248, 0.25)' : 'rgba(255, 255, 255, 0.05)';
+      this.roundRect(ctx, 397, cy + 14, 38, 38, 6, true, false);
+      ctx.font = '18px -apple-system';
+      ctx.fillText(st.icon, 407, cy + 39);
+
+      // Title & Stage
+      ctx.fillStyle = isActive ? '#f8fafc' : '#94a3b8';
+      ctx.font = 'bold 12px -apple-system, sans-serif';
+      ctx.fillText(\`\${st.num}. \${st.title}\`, 445, cy + 28);
+
+      // Badge
+      ctx.fillStyle = isActive ? '#38bdf8' : '#64748b';
+      ctx.font = '9.5px ui-monospace, monospace';
+      ctx.fillText(st.badge, 445, cy + 45);
+
+      // Description
+      ctx.fillStyle = '#64748b';
+      ctx.font = '10px -apple-system, sans-serif';
+      ctx.fillText(st.desc, 445, cy + 64);
+
+      // Active pulse dot
+      if (isActive) {
+        ctx.fillStyle = '#38bdf8';
+        ctx.shadowColor = '#38bdf8';
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(678, cy + 26, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+    });
+  },
+
+  drawAct3PayoffSimulation(ctx) {
+    const t = this.storyTime;
+    const isLive = t >= 10.2;
+
+    // Simulated Side Panel Frame
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+    ctx.strokeStyle = isLive ? 'rgba(56, 189, 248, 0.5)' : 'rgba(56, 189, 248, 0.2)';
+    ctx.lineWidth = 1.5;
+    this.roundRect(ctx, 740, 40, 320, 450, 12, true, true);
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 11px -apple-system, sans-serif';
+    ctx.fillText('3. Live Interactive Payoff in SimIt', 750, 30);
+
+    // Sidepanel Mini Header
+    ctx.fillStyle = 'rgba(30, 41, 59, 0.8)';
+    this.roundRect(ctx, 740, 40, 320, 52, 12, true, false);
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 12.5px -apple-system, sans-serif';
+    ctx.fillText('Duffing Chaotic Attractor', 758, 64);
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = '9.5px ui-monospace, monospace';
+    ctx.fillText('✦ SimIt Generated • 60 FPS • 0ms Reactivity', 758, 80);
+
+    // Interactive Phase Portrait Box (x vs v)
+    const boxX = 755;
+    const boxY = 100;
+    const boxW = 290;
+    const boxH = 220;
+
+    ctx.fillStyle = '#060a17';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+    this.roundRect(ctx, boxX, boxY, boxW, boxH, 8, true, true);
+
+    // Coordinate Axes
+    const midX = boxX + boxW / 2;
+    const midY = boxY + boxH / 2;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(boxX + 10, midY); ctx.lineTo(boxX + boxW - 10, midY);
+    ctx.moveTo(midX, boxY + 10); ctx.lineTo(midX, boxY + boxH - 10);
+    ctx.stroke();
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = '9px ui-monospace, monospace';
+    ctx.fillText('x (position)', boxX + boxW - 65, midY - 6);
+    ctx.fillText('ẋ (velocity)', midX + 6, boxY + 20);
+
+    // Draw Glowing Phase Space Trajectory Trail
+    const hist = this.payoff.history;
+    if (hist.length > 2) {
+      ctx.lineWidth = 1.5;
+      for (let i = 1; i < hist.length; i++) {
+        const p1 = hist[i - 1];
+        const p2 = hist[i];
+        const alpha = (i / hist.length);
+        const sx1 = midX + (p1.x / 2.4) * (boxW / 2 - 20);
+        const sy1 = midY - (p1.v / 2.5) * (boxH / 2 - 20);
+        const sx2 = midX + (p2.x / 2.4) * (boxW / 2 - 20);
+        const sy2 = midY - (p2.v / 2.5) * (boxH / 2 - 20);
+
+        ctx.strokeStyle = i % 2 === 0 ? \`rgba(56, 189, 248, \${alpha * 0.8})\` : \`rgba(244, 63, 94, \${alpha * 0.8})\`;
+        ctx.beginPath();
+        ctx.moveTo(sx1, sy1);
+        ctx.lineTo(sx2, sy2);
+        ctx.stroke();
+      }
+    }
+
+    // Current State Orbit Point
+    const curPx = midX + (this.payoff.x / 2.4) * (boxW / 2 - 20);
+    const curPy = midY - (this.payoff.v / 2.5) * (boxH / 2 - 20);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = '#38bdf8';
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(curPx, curPy, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Potential Well Plot V(x) = 0.25*x^4 - 0.5*x^2
+    const wellBoxY = 330;
+    const wellBoxH = 85;
+    ctx.fillStyle = 'rgba(6, 10, 23, 0.8)';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.2)';
+    this.roundRect(ctx, boxX, wellBoxY, boxW, wellBoxH, 8, true, true);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '9.5px -apple-system, sans-serif';
+    ctx.fillText('Bistable Dual Potential Wells V(x)', boxX + 10, wellBoxY + 16);
+
+    // Draw Potential Well Curve
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let px = 0; px <= boxW - 20; px += 4) {
+      const vx = ((px / (boxW - 20)) - 0.5) * 3.8;
+      const vy = 0.25 * Math.pow(vx, 4) - 0.5 * Math.pow(vx, 2);
+      const sy = (wellBoxY + wellBoxH - 15) - (vy + 0.3) * 55;
+      if (px === 0) ctx.moveTo(boxX + 10 + px, sy);
+      else ctx.lineTo(boxX + 10 + px, sy);
+    }
+    ctx.stroke();
+
+    // Draw Mass Ball rocking chaotically in potential well
+    const massPx = boxX + 10 + ((this.payoff.x / 3.8) + 0.5) * (boxW - 20);
+    const massVx = Math.max(-1.8, Math.min(1.8, this.payoff.x));
+    const massVy = 0.25 * Math.pow(massVx, 4) - 0.5 * Math.pow(massVx, 2);
+    const massPy = (wellBoxY + wellBoxH - 15) - (massVy + 0.3) * 55;
+
+    ctx.fillStyle = '#f43f5e';
+    ctx.shadowColor = '#f43f5e';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.arc(massPx, massPy - 5, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Interactive Hint Banner
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
+    this.roundRect(ctx, boxX, 425, boxW, 50, 6, true, false);
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 10px -apple-system, sans-serif';
+    ctx.fillText('👆 Click & drag inside phase portrait to perturb state!', boxX + 12, 444);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '9.5px -apple-system, sans-serif';
+    ctx.fillText('Adjust Driving Force (γ) in controls to morph chaotic regime.', boxX + 12, 462);
+  },
+
+  drawCursor(ctx, x, y, isClicking) {
+    ctx.save();
+    ctx.translate(x, y);
+    if (isClicking) {
+      ctx.scale(0.9, 0.9);
+    }
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 3;
+
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, 18);
+    ctx.lineTo(4.5, 14);
+    ctx.lineTo(9, 23);
+    ctx.lineTo(12, 21.5);
+    ctx.lineTo(7.5, 12.5);
+    ctx.lineTo(13.5, 12.5);
+    ctx.closePath();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+  },
+
+  drawScreenHUD(ctx) {
+    const { w, h } = this;
+
+    // Top Guidance Banner (Fixed Screen Coordinates)
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
+    ctx.lineWidth = 1;
+    this.roundRect(ctx, 10, 8, w - 20, 24, 6, true, true);
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 9.5px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.fillText('✦ SimIt Origin Journey', 18, 24);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '9px -apple-system, BlinkMacSystemFont, sans-serif';
+    const hint = w > 360 ? '• Drag canvas to Pan ↔ • Use bottom-left (- / +) to Zoom' : '• Drag ↔ to Pan • Zoom (- / +)';
+    ctx.fillText(hint, w > 360 ? 148 : 124, 24);
+    ctx.restore();
+
+    // Bottom Chapter Nav Pills (Fixed Screen Coordinates)
+    const pillY = h - 38;
+    const pillW = Math.min(78, (w - 30) / 4);
+    const startX = 12;
+    const chapters = [
+      { label: "1. Webpage", mode: "1. Boring Webpage" },
+      { label: "2. Agent Loop", mode: "2. Agent Loop" },
+      { label: "3. Live Sim", mode: "3. Live Payoff Sim" },
+      { label: "👁 Overview", mode: "Overview (All)" }
+    ];
+
+    chapters.forEach((ch, i) => {
+      const bx = startX + i * (pillW + 4);
+      const isSelected = this.viewMode === ch.mode;
+
+      ctx.fillStyle = isSelected ? 'rgba(56, 189, 248, 0.25)' : 'rgba(15, 23, 42, 0.85)';
+      ctx.strokeStyle = isSelected ? '#38bdf8' : 'rgba(56, 189, 248, 0.2)';
+      ctx.lineWidth = isSelected ? 1.5 : 1;
+      this.roundRect(ctx, bx, pillY, pillW, 24, 5, true, true);
+
+      ctx.fillStyle = isSelected ? '#ffffff' : '#94a3b8';
+      ctx.font = isSelected ? 'bold 9px -apple-system, sans-serif' : '8.5px -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(ch.label, bx + pillW / 2, pillY + 16);
+      ctx.textAlign = 'start';
+    });
+  },
+
+  roundRect(ctx, x, y, width, height, radius, fill, stroke) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    ctx.lineTo(x + radius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+    if (fill) ctx.fill();
+    if (stroke) ctx.stroke();
+  },
+
   update(newParams) {
-    if (newParams.testRepair) {
-      this.triggerCrashDemo();
+    if (newParams.resetJourney) {
+      this.storyTime = 0;
+      this.userInteractingTimer = 0;
+      this.viewMode = "Auto-Tour";
+    }
+    if (newParams.viewMode !== undefined) {
+      this.viewMode = newParams.viewMode;
+      this.userInteractingTimer = 6.0;
     }
     this.params = { ...this.params, ...newParams };
-    if (newParams.stage !== undefined) {
-      this.currentStage = Math.round(newParams.stage);
-      this.stageTimer = 0;
-      this.updateInspector();
-    }
   },
 
   destroy() {
