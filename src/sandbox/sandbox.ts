@@ -567,7 +567,17 @@ window.addEventListener('message', (event) => {
 
         activeModule.init(simRoot, currentParams);
 
-        // Notify host that simulation is ready
+        // Auto-repair uninitialized canvas dimensions (300x150 default)
+        const canvases = simRoot.querySelectorAll('canvas');
+        canvases.forEach((cv) => {
+          if (cv.width === 300 && cv.height === 150) {
+            const rect = cv.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+              cv.width = Math.round(rect.width);
+              cv.height = Math.round(rect.height);
+            }
+          }
+        });
         const readyMsg: SandboxToHostMessage = {
           type: 'SANDBOX_SIMULATION_READY',
           title: activeModule.title || 'Simulation',
