@@ -18,7 +18,45 @@
   <script src="vendor/gl-matrix-min.js"></script>
 </head>
 <body>
-  <div id="sim-root"></div>
+  <div id="viewport-stage">
+    <div id="sim-root"></div>
+  </div>
+
+  <!-- Bottom-Left Floating Hover Viewport Controls -->
+  <div id="viewport-controls" class="viewport-controls" title="Viewport Navigation">
+    <button id="btn-zoom-in" class="vp-btn" type="button" title="Zoom In (+)">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+    </button>
+    <button id="btn-zoom-reset" class="vp-btn vp-btn-text" type="button" title="Reset Viewport (100%)">
+      <span id="vp-zoom-readout">100%</span>
+    </button>
+    <button id="btn-zoom-out" class="vp-btn" type="button" title="Zoom Out (−)">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+    </button>
+    <div class="vp-divider"></div>
+    <button id="btn-vp-pan" class="vp-btn" type="button" title="Toggle Pan Mode (or hold Space/Alt or middle-click to drag)">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="5 9 2 12 5 15"></polyline>
+        <polyline points="9 5 12 2 15 5"></polyline>
+        <polyline points="15 19 12 22 9 19"></polyline>
+        <polyline points="19 9 22 12 19 15"></polyline>
+        <line x1="2" y1="12" x2="22" y2="12"></line>
+        <line x1="12" y1="2" x2="12" y2="22"></line>
+      </svg>
+    </button>
+    <button id="btn-vp-recenter" class="vp-btn" type="button" title="Recenter Viewport">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+        <polyline points="3 3 3 8 8 8"></polyline>
+      </svg>
+    </button>
+  </div>
+
   <div id="pane-dock"></div>
   <script type="module" src="sandbox.ts"></script>
 </body>

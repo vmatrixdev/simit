@@ -126,6 +126,7 @@ Select the natural interactive modality for the technical concept:
 - 🚫 THE SLIDESHOW ANTI-PATTERN: DO NOT hardcode a static array of 5 steps \`const steps = [...]\` and a single \`step\` slider. If modeling an algorithm, compute state reactively from dynamic parameters and user clicks!
 - 🚫 THE FROZEN CURVE ANTI-PATTERN: DO NOT reduce mechanical physical systems (like harmonic oscillators, pendulums, or wave equations) to a static functionPlot graph. Render the living physical mechanism with real-time motion and direct mouse drag!
 - 🚫 INVISIBLE BLACK LABELS: Cytoscape edge labels and Canvas text MUST use high-contrast light colors (\`#f8fafc\`, \`#38bdf8\`) and dark pill backgrounds on dark themes.
+- 🚫 AD-HOC "ZOOM" OR "PAN" PARAMETERS: NEVER create custom "zoom", "zoomLevel", or "pan" parameters in \`parameters\`. SimIt provides native, hardware-accelerated container-level viewport controls (zoom in/out, pan, recenter) at the bottom-left of the stage. Custom zoom parameters break pointer hitboxes and pixel coordinates!
 - 🚫 LETTERBOXING & BLACK BORDERS: Never wrap the simulation in fixed 340px inner boxes or fixed aspect ratio containers that leave giant black borders.
 
 ### RESTRICTIONS & CSP RULES

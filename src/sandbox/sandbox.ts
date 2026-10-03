@@ -62,6 +62,174 @@ function cleanupPane() {
     paneDock.style.bottom = '';
     paneDock.classList.remove('is-dragging');
   }
+  resetViewport();
+}
+
+/**
+ * Universal Viewport Navigation Controller (Zoom in/out, pan, recenter)
+ * Operates at the #sim-root level so all simulations (Canvas, SVG, Cytoscape, DOM)
+ * gain smooth, unified camera navigation without conflicting parameter sliders.
+ */
+let currentScale = 1.0;
+let panX = 0;
+let panY = 0;
+let isPanModeActive = false;
+const MIN_SCALE = 0.4;
+const MAX_SCALE = 3.5;
+const SCALE_STEP = 0.25;
+
+function updateViewportTransform(animate = true) {
+  const simRoot = document.getElementById('sim-root');
+  const readout = document.getElementById('vp-zoom-readout');
+  if (simRoot) {
+    simRoot.style.transition = animate ? 'transform 0.08s ease-out' : 'none';
+    simRoot.style.transform = `translate(${panX}px, ${panY}px) scale(${currentScale})`;
+  }
+  if (readout) {
+    readout.textContent = `${Math.round(currentScale * 100)}%`;
+  }
+}
+
+function setZoom(newScale: number, focalX?: number, focalY?: number) {
+  const prevScale = currentScale;
+  currentScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, Math.round(newScale * 100) / 100));
+
+  if (focalX !== undefined && focalY !== undefined && prevScale !== currentScale) {
+    const factor = currentScale / prevScale;
+    panX = focalX - factor * (focalX - panX);
+    panY = focalY - factor * (focalY - panY);
+  }
+
+  updateViewportTransform(true);
+}
+
+function resetViewport() {
+  currentScale = 1.0;
+  panX = 0;
+  panY = 0;
+  isPanModeActive = false;
+  const btnPan = document.getElementById('btn-vp-pan');
+  const viewportStage = document.getElementById('viewport-stage');
+  if (btnPan) btnPan.classList.remove('active');
+  if (viewportStage) {
+    viewportStage.classList.remove('is-panning');
+    viewportStage.classList.remove('is-panning-active');
+  }
+  updateViewportTransform(false);
+}
+
+function initViewportControls() {
+  const viewportStage = document.getElementById('viewport-stage');
+  const btnZoomIn = document.getElementById('btn-zoom-in');
+  const btnZoomOut = document.getElementById('btn-zoom-out');
+  const btnZoomReset = document.getElementById('btn-zoom-reset');
+  const btnRecenter = document.getElementById('btn-vp-recenter');
+  const btnPan = document.getElementById('btn-vp-pan');
+
+  btnZoomIn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setZoom(currentScale + SCALE_STEP);
+  });
+  btnZoomOut?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setZoom(currentScale - SCALE_STEP);
+  });
+  btnZoomReset?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    currentScale = 1.0;
+    updateViewportTransform(true);
+  });
+  btnRecenter?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    resetViewport();
+  });
+
+  btnPan?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    isPanModeActive = !isPanModeActive;
+    btnPan.classList.toggle('active', isPanModeActive);
+    viewportStage?.classList.toggle('is-panning', isPanModeActive);
+  });
+
+  // Space/Alt key down enables temporary pan mode cursor
+  let spaceHeld = false;
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && (e.target as HTMLElement)?.tagName !== 'INPUT') {
+      spaceHeld = true;
+      viewportStage?.classList.add('is-panning');
+    }
+  });
+
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'Space') {
+      spaceHeld = false;
+      if (!isPanModeActive) {
+        viewportStage?.classList.remove('is-panning');
+      }
+    }
+  });
+
+  // Pan dragging via pointer events on viewportStage
+  let isDraggingPan = false;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let startPanX = 0;
+  let startPanY = 0;
+
+  viewportStage?.addEventListener('pointerdown', (e: PointerEvent) => {
+    const isMiddleClick = e.button === 1;
+    const isKeyHeld = e.altKey || spaceHeld;
+    if (!isPanModeActive && !isMiddleClick && !isKeyHeld) return;
+
+    const target = e.target as HTMLElement;
+    if (target.closest('#pane-dock') || target.closest('#viewport-controls')) return;
+
+    isDraggingPan = true;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    startPanX = panX;
+    startPanY = panY;
+
+    viewportStage.classList.add('is-panning-active');
+    try {
+      viewportStage.setPointerCapture(e.pointerId);
+    } catch (_) {}
+
+    e.preventDefault();
+  });
+
+  viewportStage?.addEventListener('pointermove', (e: PointerEvent) => {
+    if (!isDraggingPan) return;
+    const dx = e.clientX - dragStartX;
+    const dy = e.clientY - dragStartY;
+    panX = startPanX + dx;
+    panY = startPanY + dy;
+    updateViewportTransform(false);
+  });
+
+  const endPan = (e: PointerEvent) => {
+    if (!isDraggingPan) return;
+    isDraggingPan = false;
+    viewportStage?.classList.remove('is-panning-active');
+    try {
+      viewportStage?.releasePointerCapture(e.pointerId);
+    } catch (_) {}
+  };
+
+  viewportStage?.addEventListener('pointerup', endPan);
+  viewportStage?.addEventListener('pointercancel', endPan);
+
+  // Wheel zoom when holding Ctrl/Cmd or trackpad pinch
+  viewportStage?.addEventListener('wheel', (e: WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const rect = viewportStage.getBoundingClientRect();
+      const focalX = e.clientX - rect.left - rect.width / 2;
+      const focalY = e.clientY - rect.top - rect.height / 2;
+      const factor = e.deltaY < 0 ? 1.15 : 0.87;
+      setZoom(currentScale * factor, focalX, focalY);
+    }
+  }, { passive: false });
 }
 
 /**
@@ -164,6 +332,9 @@ const domPaneDock = document.getElementById('pane-dock');
 if (domPaneDock) {
   makeDraggable(domPaneDock);
 }
+
+// Initialize universal viewport controls (zoom in/out, pan, recenter)
+initViewportControls();
 
 // Global error hooks catching unhandled runtime exceptions
 window.addEventListener('error', (event) => {
