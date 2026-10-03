@@ -87,201 +87,373 @@ const btnTestConnection = document.getElementById('btn-test-connection') as HTML
 const settingsStatusMsg = document.getElementById('settings-status-msg') as HTMLElement;
 
 export const WELCOME_SIMULATION_CODE = `export default {
-  title: "SimIt Copilot",
-  description: "Interactive visualizer copilot. Highlight formulas, algorithms, or concepts on any page and right-click 'SimIt' — or prompt below.",
+  title: "SimIt Autonomous Agent Loop",
+  description: "Interactive visualizer explaining SimIt's zero-prompt architecture: context harvesting, prompt assembly, model routing, offscreen verification, and 1-shot self-repair.",
   parameters: [
-    { id: "particles", label: "Particle Density", type: "slider", min: 20, max: 80, step: 5, default: 45, unit: "nodes" },
-    { id: "speed", label: "Oscillation Speed", type: "slider", min: 0.2, max: 2.5, step: 0.1, default: 1.0, unit: "x" },
-    { id: "connectDist", label: "Coupling Radius", type: "slider", min: 60, max: 180, step: 10, default: 110, unit: "px" }
+    { id: "stage", label: "Pipeline Stage", type: "slider", min: 1, max: 6, step: 1, default: 1 },
+    { id: "autoPlay", label: "Auto Cycle Loop", type: "toggle", default: true },
+    { id: "speed", label: "Flow Velocity", type: "slider", min: 0.5, max: 3.0, step: 0.1, default: 1.0, unit: "x" },
+    { id: "engine", label: "Model Engine", type: "select", options: ["Gemini Nano ($0)", "Claude 3.5 Sonnet", "Gemini 2.0 Flash", "Ollama Local"], default: "Gemini Nano ($0)" },
+    { id: "testRepair", label: "⚡ Demo 1-Shot Repair", type: "button" }
   ],
   init(container, params) {
     this.container = container;
     this.params = { ...params };
+    this.currentStage = Math.round(params.stage || 1);
+    this.stageTimer = 0;
+    this.repairAnimTimer = 0;
+    this.packets = [];
+
+    // Stages definition
+    this.stages = [
+      {
+        num: 1,
+        title: "Context Harvester",
+        icon: "📄",
+        desc: "Extracts selection, math formulas, and nearby DOM headings from tab.",
+        tag: "Input Scope",
+        formula: "\\\\mathcal{L}_{\\\\text{sim}} = \\\\int f(x, \\\\dot{x}) dt",
+        contract: "HarvestedContext { selection, mathSnippets, domContext }"
+      },
+      {
+        num: 2,
+        title: "Archetype Triage",
+        icon: "🧠",
+        desc: "Autonomous classification: Parameter Explorer, Step Scrubber, or Graph.",
+        tag: "Deduction",
+        formula: "\\\\mathcal{T} = \\\\arg\\\\max_A P(A \\\\mid \\\\text{Context})",
+        contract: "classifyArchetype(context) -> ArchetypeTriageResult"
+      },
+      {
+        num: 3,
+        title: "Prompt Composer",
+        icon: "📐",
+        desc: "Injects dynamic viewport (W x H) and decouples reasoning tags.",
+        tag: "AST Assembly",
+        formula: "W \\\\ge 320\\\\text{px}, H \\\\ge 380\\\\text{px}",
+        contract: "<simulation_thinking> ... </simulation_thinking>"
+      },
+      {
+        num: 4,
+        title: "Model Engine Router",
+        icon: "⚡",
+        desc: "Zero-cost on-device Gemini Nano with seamless BYOK frontier fallback.",
+        tag: "Inference",
+        formula: "\\\\text{Latency} \\\\approx 800\\\\text{ms} \\\\quad (\\\\$0.00)",
+        contract: "provider.generateSimulation(systemPrompt, userPrompt)"
+      },
+      {
+        num: 5,
+        title: "Offscreen Verification",
+        icon: "🧪",
+        desc: "100ms headless smoke test, CSP sandboxing & automated 1-shot self-repair.",
+        tag: "Pre-Flight",
+        formula: "\\\\text{Status} = \\\\text{PASS} \\\\iff \\\\Delta t \\\\le 100\\\\text{ms}",
+        contract: "executePreFlightRepairLoop(code, offscreenHarness)"
+      },
+      {
+        num: 6,
+        title: "Side Panel Runtime",
+        icon: "🚀",
+        desc: "60 FPS declarative execution, 0ms Tweakpane sliders, and v1-v3 evolution.",
+        tag: "Reactive Host",
+        formula: "\\\\Delta t_{\\\\text{slider}} = 0\\\\text{ms (Direct)}",
+        contract: "activeModule.init(simRoot, params) + Tweakpane"
+      }
+    ];
+
+    // Main wrapper
+    const root = document.createElement('div');
+    root.style.cssText = 'position: absolute; inset: 0; display: flex; flex-direction: column; overflow: hidden; background: radial-gradient(circle at 50% 25%, #0b1328 0%, #040711 100%); user-select: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;';
+    container.appendChild(root);
+    this.root = root;
+
+    // Canvas background for wiring and flowing energy packets
     const canvas = document.createElement('canvas');
-    canvas.style.cssText = 'width: 100%; height: 100%; display: block; background: radial-gradient(circle at 50% 35%, #0c1427 0%, #050811 100%); cursor: crosshair;';
-    container.appendChild(canvas);
+    canvas.style.cssText = 'position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1;';
+    root.appendChild(canvas);
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
 
+    // Overlay for stages
+    const stagesContainer = document.createElement('div');
+    stagesContainer.style.cssText = 'position: relative; z-index: 2; flex: 1; display: flex; flex-direction: column; justify-content: space-evenly; padding: 14px 16px 8px 16px; overflow-y: auto;';
+    root.appendChild(stagesContainer);
+    this.stagesContainer = stagesContainer;
+
+    // Render Stage Cards
+    this.stageElements = [];
+    this.stages.forEach((st) => {
+      const card = document.createElement('div');
+      card.style.cssText = 'display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(56, 189, 248, 0.15); backdrop-filter: blur(8px); cursor: pointer; transition: all 0.25s ease; position: relative;';
+
+      const iconBox = document.createElement('div');
+      iconBox.style.cssText = 'width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 15px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.25); flex-shrink: 0;';
+      iconBox.textContent = st.icon;
+
+      const infoBox = document.createElement('div');
+      infoBox.style.cssText = 'flex: 1; min-width: 0;';
+
+      const titleRow = document.createElement('div');
+      titleRow.style.cssText = 'display: flex; align-items: center; justify-content: space-between; gap: 6px;';
+
+      const title = document.createElement('span');
+      title.style.cssText = 'font-size: 12px; font-weight: 600; color: #f8fafc;';
+      title.textContent = \`\${st.num}. \${st.title}\`;
+
+      const tag = document.createElement('span');
+      tag.style.cssText = 'font-size: 9.5px; font-family: ui-monospace, monospace; padding: 2px 6px; border-radius: 4px; background: rgba(56, 189, 248, 0.12); color: #38bdf8;';
+      tag.textContent = st.tag;
+
+      titleRow.appendChild(title);
+      titleRow.appendChild(tag);
+
+      const desc = document.createElement('div');
+      desc.style.cssText = 'font-size: 10.5px; color: #94a3b8; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
+      desc.textContent = st.desc;
+
+      infoBox.appendChild(titleRow);
+      infoBox.appendChild(desc);
+
+      card.appendChild(iconBox);
+      card.appendChild(infoBox);
+
+      card.addEventListener('pointerenter', () => {
+        card.style.borderColor = 'rgba(56, 189, 248, 0.5)';
+        card.style.transform = 'translateX(4px)';
+      });
+      card.addEventListener('pointerleave', () => {
+        if (this.currentStage !== st.num) {
+          card.style.borderColor = 'rgba(56, 189, 248, 0.15)';
+          card.style.transform = 'none';
+        }
+      });
+      card.addEventListener('click', () => {
+        this.currentStage = st.num;
+        this.stageTimer = 0;
+        this.updateInspector();
+      });
+
+      stagesContainer.appendChild(card);
+      this.stageElements.push(card);
+    });
+
+    // Bottom Inspector / HUD Banner
+    const inspector = document.createElement('div');
+    inspector.style.cssText = 'margin: 6px 14px 10px 14px; padding: 10px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(56, 189, 248, 0.3); backdrop-filter: blur(10px); z-index: 3; display: flex; flex-direction: column; gap: 6px;';
+    root.appendChild(inspector);
+    this.inspector = inspector;
+
+    // Resize handler
     const resize = () => {
       const rect = container.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = (rect.width || 360) * dpr;
-      canvas.height = (rect.height || 480) * dpr;
-      this.ctx.resetTransform?.();
-      this.ctx.scale(dpr, dpr);
       this.w = rect.width || 360;
       this.h = rect.height || 480;
-      this.initNodes();
+      canvas.width = this.w * dpr;
+      canvas.height = this.h * dpr;
+      this.ctx.resetTransform?.();
+      this.ctx.scale(dpr, dpr);
     };
-    this.resize = resize;
     resize();
     this.ro = new ResizeObserver(resize);
     this.ro.observe(container);
 
-    this.mouse = { x: -1000, y: -1000, isDown: false, pulse: 0 };
-    canvas.addEventListener('pointermove', (e) => {
-      const r = canvas.getBoundingClientRect();
-      this.mouse.x = e.clientX - r.left;
-      this.mouse.y = e.clientY - r.top;
-    });
-    canvas.addEventListener('pointerdown', (e) => {
-      const r = canvas.getBoundingClientRect();
-      this.mouse.x = e.clientX - r.left;
-      this.mouse.y = e.clientY - r.top;
-      this.mouse.isDown = true;
-      this.mouse.pulse = 1.0;
-    });
-    window.addEventListener('pointerup', () => { this.mouse.isDown = false; });
+    // Initial inspector render
+    this.updateInspector();
 
-    let lastT = performance.now();
+    // 60 FPS animation loop
+    let lastTime = performance.now();
     const loop = (t) => {
-      const dt = Math.min(0.05, (t - lastT) / 1000);
-      lastT = t;
-      this.update(dt);
+      const dt = Math.min(0.05, (t - lastTime) / 1000);
+      lastTime = t;
+      this.stepSimulation(dt);
       this.draw();
       this.raf = requestAnimationFrame(loop);
     };
     this.raf = requestAnimationFrame(loop);
   },
-  initNodes() {
-    const count = this.params.particles || 45;
-    this.nodes = [];
-    for (let i = 0; i < count; i++) {
-      this.nodes.push({
-        x: Math.random() * this.w,
-        y: Math.random() * this.h,
-        vx: (Math.random() - 0.5) * 35,
-        vy: (Math.random() - 0.5) * 35,
-        baseR: 2 + Math.random() * 2.5,
-        phase: Math.random() * Math.PI * 2
-      });
-    }
-  },
-  update(dt) {
-    const spd = this.params.speed || 1.0;
-    const count = Math.round(this.params.particles || 45);
-    while (this.nodes.length < count) {
-      this.nodes.push({
-        x: Math.random() * this.w,
-        y: Math.random() * this.h,
-        vx: (Math.random() - 0.5) * 35,
-        vy: (Math.random() - 0.5) * 35,
-        baseR: 2 + Math.random() * 2.5,
-        phase: Math.random() * Math.PI * 2
-      });
-    }
-    if (this.nodes.length > count) this.nodes.length = count;
 
-    if (this.mouse.pulse > 0) {
-      this.mouse.pulse = Math.max(0, this.mouse.pulse - dt * 1.5);
-    }
+  updateInspector() {
+    const st = this.stages[this.currentStage - 1];
+    if (!st || !this.inspector) return;
 
-    for (const n of this.nodes) {
-      n.phase += dt * 2 * spd;
-      n.x += n.vx * dt * spd;
-      n.y += n.vy * dt * spd;
+    // Update active card visual
+    this.stageElements.forEach((card, idx) => {
+      const active = (idx + 1) === this.currentStage;
+      card.style.borderColor = active ? '#38bdf8' : 'rgba(56, 189, 248, 0.15)';
+      card.style.background = active ? 'rgba(56, 189, 248, 0.12)' : 'rgba(15, 23, 42, 0.65)';
+      card.style.boxShadow = active ? '0 0 14px rgba(56, 189, 248, 0.25)' : 'none';
+      card.style.transform = active ? 'translateX(4px)' : 'none';
+    });
 
-      const dx = this.mouse.x - n.x;
-      const dy = this.mouse.y - n.y;
-      const dist = Math.hypot(dx, dy);
-      if (dist < 140 && dist > 1) {
-        const force = (140 - dist) / 140;
-        const sign = this.mouse.isDown ? -1 : 1;
-        n.x += (dx / dist) * force * 50 * dt * sign;
-        n.y += (dy / dist) * force * 50 * dt * sign;
+    // Inspector Content with KaTeX Math typesetting
+    this.inspector.innerHTML = \`
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 13px;">\${st.icon}</span>
+          <span style="font-size: 11.5px; font-weight: 600; color: #f8fafc;">Stage \${st.num}: \${st.title}</span>
+        </div>
+        <span style="font-size: 10px; color: #38bdf8; font-family: ui-monospace, monospace;">\${st.contract.split(' ')[0]}</span>
+      </div>
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+        <span style="font-size: 10.5px; color: #94a3b8; flex: 1;">\${st.desc}</span>
+        <div id="inspector-katex-slot" style="font-size: 11px; color: #38bdf8; background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(56,189,248,0.2);"></div>
+      </div>
+    \`;
+
+    const katexSlot = this.inspector.querySelector('#inspector-katex-slot');
+    if (katexSlot && st.formula) {
+      if (window.katex && typeof window.katex.render === 'function') {
+        try {
+          window.katex.render(st.formula, katexSlot, { throwOnError: false });
+        } catch {
+          katexSlot.textContent = st.formula;
+        }
+      } else {
+        katexSlot.textContent = st.formula;
       }
-
-      if (n.x < 10) { n.x = 10; n.vx *= -1; }
-      if (n.x > this.w - 10) { n.x = this.w - 10; n.vx *= -1; }
-      if (n.y < 10) { n.y = 10; n.vy *= -1; }
-      if (n.y > this.h - 10) { n.y = this.h - 10; n.vy *= -1; }
     }
   },
+
+  triggerCrashDemo() {
+    this.repairAnimTimer = 2.5;
+    this.currentStage = 5;
+    this.updateInspector();
+  },
+
+  stepSimulation(dt) {
+    const spd = this.params.speed || 1.0;
+    this.stageTimer += dt * spd;
+
+    // Auto cycle stages
+    if (this.params.autoAdvance && this.stageTimer > 3.0) {
+      this.stageTimer = 0;
+      this.currentStage = (this.currentStage % 6) + 1;
+      this.updateInspector();
+    }
+
+    if (this.repairAnimTimer > 0) {
+      this.repairAnimTimer = Math.max(0, this.repairAnimTimer - dt);
+    }
+
+    // Spawn packets moving between stages
+    if (Math.random() < 0.25 * spd) {
+      this.packets.push({
+        from: this.currentStage,
+        to: (this.currentStage % 6) + 1,
+        progress: 0,
+        speed: (0.45 + Math.random() * 0.35) * spd,
+        color: this.currentStage === 5 ? '#a855f7' : '#38bdf8'
+      });
+    }
+
+    for (let i = this.packets.length - 1; i >= 0; i--) {
+      const p = this.packets[i];
+      p.progress += dt * p.speed;
+      if (p.progress >= 1.0) {
+        this.packets.splice(i, 1);
+      }
+    }
+  },
+
   draw() {
-    const { ctx, w, h, nodes, mouse, params } = this;
+    const { ctx, w, h } = this;
     if (!ctx || !w || !h) return;
     ctx.clearRect(0, 0, w, h);
 
-    const maxDist = params.connectDist || 110;
+    // Calculate node anchor positions
+    const positions = this.stageElements.map((el) => {
+      const r = el.getBoundingClientRect();
+      const parentR = this.root.getBoundingClientRect();
+      return {
+        x: r.left - parentR.left + 22,
+        y: r.top - parentR.top + r.height / 2
+      };
+    });
 
-    for (let i = 0; i < nodes.length; i++) {
-      for (let j = i + 1; j < nodes.length; j++) {
-        const d = Math.hypot(nodes[i].x - nodes[j].x, nodes[i].y - nodes[j].y);
-        if (d < maxDist) {
-          const alpha = (1 - d / maxDist) * 0.45;
-          ctx.strokeStyle = \`rgba(56, 189, 248, \${alpha})\`;
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(nodes[i].x, nodes[i].y);
-          ctx.lineTo(nodes[j].x, nodes[j].y);
-          ctx.stroke();
-        }
+    if (positions.length < 6) return;
+
+    // Draw connecting bus lines
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.15)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath();
+    for (let i = 0; i < positions.length - 1; i++) {
+      const p1 = positions[i];
+      const p2 = positions[i + 1];
+      ctx.moveTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+    }
+    // Loop back from stage 6 to stage 1
+    const pLast = positions[positions.length - 1];
+    const pFirst = positions[0];
+    ctx.moveTo(pLast.x, pLast.y);
+    ctx.bezierCurveTo(pLast.x - 30, pLast.y + 20, pFirst.x - 30, pFirst.y - 20, pFirst.x, pFirst.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Draw active aura behind current stage
+    const activePos = positions[this.currentStage - 1];
+    if (activePos) {
+      const isRepairing = this.repairAnimTimer > 0;
+      const auraColor = isRepairing ? 'rgba(244, 63, 94, 0.45)' : 'rgba(56, 189, 248, 0.35)';
+      const grad = ctx.createRadialGradient(activePos.x, activePos.y, 4, activePos.x, activePos.y, 35);
+      grad.addColorStop(0, auraColor);
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(activePos.x, activePos.y, 35, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (isRepairing) {
+        ctx.fillStyle = '#f43f5e';
+        ctx.font = '600 11px system-ui';
+        ctx.fillText('⚡ 1-SHOT SELF-REPAIR ACTIVE (AST PATCH APPLIED)', activePos.x + 30, activePos.y - 12);
       }
     }
 
-    for (const n of nodes) {
-      const r = n.baseR + Math.sin(n.phase) * 0.8;
-      ctx.fillStyle = '#38bdf8';
+    // Draw flowing energy packets
+    this.packets.forEach((p) => {
+      const p1 = positions[p.from - 1];
+      const p2 = positions[p.to - 1];
+      if (!p1 || !p2) return;
+
+      let curX, curY;
+      if (p.from === 6 && p.to === 1) {
+        // Curve along loop-back
+        const t = p.progress;
+        const cx1 = p1.x - 30, cy1 = p1.y + 20;
+        const cx2 = p2.x - 30, cy2 = p2.y - 20;
+        curX = (1 - t) ** 3 * p1.x + 3 * (1 - t) ** 2 * t * cx1 + 3 * (1 - t) * t ** 2 * cx2 + t ** 3 * p2.x;
+        curY = (1 - t) ** 3 * p1.y + 3 * (1 - t) ** 2 * t * cy1 + 3 * (1 - t) * t ** 2 * cy2 + t ** 3 * p2.y;
+      } else {
+        curX = p1.x + (p2.x - p1.x) * p.progress;
+        curY = p1.y + (p2.y - p1.y) * p.progress;
+      }
+
+      ctx.fillStyle = p.color;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 8;
       ctx.beginPath();
-      ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+      ctx.arc(curX, curY, 3, 0, Math.PI * 2);
       ctx.fill();
-    }
-
-    if (mouse.pulse > 0) {
-      const pulseR = (1 - mouse.pulse) * 90;
-      ctx.strokeStyle = \`rgba(245, 158, 11, \${mouse.pulse * 0.7})\`;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(mouse.x, mouse.y, pulseR, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-
-    const cx = w / 2;
-    const cy = h / 2 - 10;
-
-    ctx.save();
-    const boxW = Math.min(290, w - 36);
-    const boxH = 130;
-    const bx = cx - boxW / 2;
-    const by = cy - boxH / 2;
-
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.28)';
-    ctx.lineWidth = 1;
-    if (typeof ctx.roundRect === 'function') {
-      ctx.roundRect(bx, by, boxW, boxH, 12);
-    } else {
-      ctx.rect(bx, by, boxW, boxH);
-    }
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#38bdf8';
-    ctx.font = '600 12.5px system-ui, -apple-system, sans-serif';
-    ctx.fillText('✦ READY TO SIMULATE', cx, by + 25);
-
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '11px system-ui, -apple-system, sans-serif';
-    ctx.fillText('Highlight text or equation on page', cx, by + 50);
-    ctx.fillStyle = '#f8fafc';
-    ctx.font = '600 12px system-ui, -apple-system, sans-serif';
-    ctx.fillText('➔ Right-click "SimIt"', cx, by + 69);
-
-    ctx.fillStyle = '#64748b';
-    ctx.font = '10.5px system-ui, -apple-system, sans-serif';
-    ctx.fillText('— or enter a prompt below —', cx, by + 92);
-
-    ctx.fillStyle = '#38bdf8';
-    ctx.font = '10px monospace';
-    ctx.fillText('Interactive Canvas Active (Drag to perturb)', cx, by + 114);
-
-    ctx.restore();
+      ctx.shadowBlur = 0;
+    });
   },
+
   update(newParams) {
+    if (newParams.testRepair) {
+      this.triggerCrashDemo();
+    }
     this.params = { ...this.params, ...newParams };
+    if (newParams.stage !== undefined) {
+      this.currentStage = Math.round(newParams.stage);
+      this.stageTimer = 0;
+      this.updateInspector();
+    }
   },
+
   destroy() {
     cancelAnimationFrame(this.raf);
     this.ro?.disconnect();
