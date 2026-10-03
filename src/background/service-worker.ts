@@ -65,6 +65,44 @@ async function dispatchPreflightToOffscreen(request: PreFlightTestRequest): Prom
   return runPreFlightSmokeTest(request);
 }
 
+export interface ActiveGenerationStatus {
+  active: boolean;
+  step: 1 | 2 | 3 | 4;
+  title: string;
+  detail: string;
+  stageName: 'think' | 'code' | 'test' | 'load' | 'ready' | 'error';
+  timestamp: number;
+}
+
+let activeGenerationStatus: ActiveGenerationStatus = {
+  active: false,
+  step: 1,
+  title: 'Ready',
+  detail: 'Awaiting input or text selection',
+  stageName: 'ready',
+  timestamp: Date.now()
+};
+
+export function updateGenerationProgress(
+  step: 1 | 2 | 3 | 4,
+  title: string,
+  detail: string,
+  stageName: 'think' | 'code' | 'test' | 'load' | 'ready' | 'error'
+) {
+  activeGenerationStatus = {
+    active: stageName !== 'ready' && stageName !== 'error',
+    step,
+    title,
+    detail,
+    stageName,
+    timestamp: Date.now()
+  };
+  broadcastToSidePanel({
+    type: 'GENERATION_PROGRESS',
+    payload: activeGenerationStatus
+  });
+}
+
 // 1. Setup Context Menu & Side Panel behavior on install
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
@@ -85,6 +123,14 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== CONTEXT_MENU_ID || !tab?.id) return;
 
   const tabId = tab.id;
+
+  // Immediately record generation start so side panel picks it up even if it was closed
+  updateGenerationProgress(
+    1,
+    'Harvesting Context & Math...',
+    'Extracting technical equations, definitions, and surrounding DOM',
+    'think'
+  );
 
   // Open the Chrome Side Panel immediately
   try {
@@ -188,6 +234,13 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
     target_tier: routingDecision.targetTier
   });
 
+  updateGenerationProgress(
+    2,
+    'Synthesizing Simulation Code...',
+    `Synthesizing ${classification.archetype.replace(/_/g, ' ')} via ${provider.type}`,
+    'code'
+  );
+
   broadcastToSidePanel({
     type: 'SIMULATION_LOADING',
     title: 'Generating Simulation Code...',
@@ -235,6 +288,7 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
   } catch (err: any) {
     console.error('[SimIt SW] Model generation error:', err);
     const failedTrajectory = atifLogger.complete(false);
+    updateGenerationProgress(2, 'Generation Error', err.message || String(err), 'error');
     broadcastToSidePanel({
       type: 'SIMULATION_ERROR',
       errorMessage: `Model generation failed: ${err.message || String(err)}`,
@@ -245,6 +299,13 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
   }
 
   // Execute pre-flight verification with 1-shot self-repair loop
+  updateGenerationProgress(
+    3,
+    'Sandbox Pre-Flight Verification...',
+    'Testing execution and CSP in isolated offscreen sandbox',
+    'test'
+  );
+
   const repairResult = await executePreFlightRepairLoop(
     rawGeneratedCode,
     provider,
@@ -269,6 +330,12 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
   );
 
   if (repairResult.success) {
+    updateGenerationProgress(
+      4,
+      'Mounting Interactive Runtime...',
+      'Simulation ready • Full interactive controls mounted',
+      'load'
+    );
     atifLogger.recordStep('RENDER', {}, { parameter_count: repairResult.parameters.length }, undefined, undefined, 'MOUNTED');
     const trajectory = atifLogger.complete(true, repairResult.code);
 
@@ -331,8 +398,20 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
       evolutionChips,
       routingDecision
     });
+    updateGenerationProgress(
+      4,
+      'Simulation Ready!',
+      'v1 active • Ready for exploration or refinement',
+      'ready'
+    );
   } else {
     const failedTrajectory = atifLogger.complete(false, repairResult.code);
+    updateGenerationProgress(
+      3,
+      'Pre-Flight Error',
+      repairResult.finalError || 'Verification failed',
+      'error'
+    );
     broadcastToSidePanel({
       type: 'SIMULATION_ERROR',
       errorMessage: `Pre-flight verification failed after repair: ${repairResult.finalError || 'Unknown runtime error'}`,
@@ -344,6 +423,11 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
 
 // 3. Listen for Messages from Side Panel or Test Harness
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message && message.type === 'GET_ACTIVE_GENERATION_STATE') {
+    sendResponse({ status: 'ok', payload: activeGenerationStatus });
+    return true;
+  }
+
   if (message && message.type === 'START_SIMULATION_REQUEST') {
     (async () => {
       const tabId = message.tabId || _sender.tab?.id;
@@ -410,8 +494,42 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 async function handleEvolutionRequest(message: EvolutionRequestMessage): Promise<EvolutionResponseMessage> {
+  const userInput = message.userMessage || '';
+
   const session = await getSession(message.sessionId);
   if (!session) {
+    if (userInput.trim()) {
+      updateGenerationProgress(
+        1,
+        'Analyzing Prompt Intent...',
+        `Formulating simulation archetype for "${userInput.slice(0, 35)}..."`,
+        'think'
+      );
+      const harvestedContext: HarvestedContext = {
+        harvestId: `prompt-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        selection: {
+          selectedText: userInput,
+          characterCount: userInput.length,
+          sourceUrl: '',
+          documentTitle: userInput.slice(0, 30)
+        },
+        mathSnippets: [],
+        domContext: {
+          nearestHeading: userInput,
+          headingLevel: 'H1',
+          caption: null,
+          paragraphSnippet: userInput
+        }
+      };
+      await orchestrateSimulationGeneration(harvestedContext);
+      return {
+        type: 'EVOLUTION_RESPONSE',
+        status: 'ok',
+        intentType: 'structural_evolution'
+      };
+    }
+
     return {
       type: 'EVOLUTION_RESPONSE',
       status: 'error',
@@ -424,11 +542,23 @@ async function handleEvolutionRequest(message: EvolutionRequestMessage): Promise
   const currentVersion = versions.find((v) => v.id === session.activeVersionId) || versions[versions.length - 1];
   const paramDefs = currentVersion?.parameters || [];
 
+  updateGenerationProgress(
+    1,
+    'Analyzing Refinement Intent...',
+    'Determining parametric tweak vs structural evolution',
+    'think'
+  );
+
   // Intent Triage: Check if parametric or structural
-  const userInput = message.userMessage || '';
   const analysis = triageRefinementIntent(userInput, message.activeParams, paramDefs);
 
   if (analysis.intentType === 'parametric_tweak') {
+    updateGenerationProgress(
+      4,
+      'Parameter Updated (0ms overhead)',
+      'Direct parameter patch applied to simulation',
+      'ready'
+    );
     return {
       type: 'EVOLUTION_RESPONSE',
       status: 'ok',
@@ -442,6 +572,12 @@ async function handleEvolutionRequest(message: EvolutionRequestMessage): Promise
     for (const p of paramDefs) {
       defaultParams[p.id] = (p as any).default;
     }
+    updateGenerationProgress(
+      4,
+      'Parameters Reset',
+      'Restored initial module default parameters',
+      'ready'
+    );
     return {
       type: 'EVOLUTION_RESPONSE',
       status: 'ok',
@@ -451,6 +587,13 @@ async function handleEvolutionRequest(message: EvolutionRequestMessage): Promise
   }
 
   // Structural Evolution via LLM
+  updateGenerationProgress(
+    2,
+    'Synthesizing Evolved Simulation...',
+    'Prompting model with compacted session context',
+    'code'
+  );
+
   const settings = await loadBYOKSettings();
   const { provider } = await resolveActiveProvider(settings);
 
@@ -477,6 +620,13 @@ async function handleEvolutionRequest(message: EvolutionRequestMessage): Promise
     temperature: settings.providers[provider.type]?.temperature || 0.2
   });
 
+  updateGenerationProgress(
+    3,
+    'Sandbox Pre-Flight Verification...',
+    'Testing updated simulation in isolated offscreen sandbox',
+    'test'
+  );
+
   const repairResult = await executePreFlightRepairLoop(
     generationRes.rawCode,
     provider,
@@ -484,6 +634,12 @@ async function handleEvolutionRequest(message: EvolutionRequestMessage): Promise
   );
 
   if (!repairResult.success) {
+    updateGenerationProgress(
+      3,
+      'Refinement Verification Failed',
+      repairResult.finalError || 'Runtime error in refinement',
+      'error'
+    );
     return {
       type: 'EVOLUTION_RESPONSE',
       status: 'error',
@@ -515,6 +671,13 @@ async function handleEvolutionRequest(message: EvolutionRequestMessage): Promise
   session.versionsCount = nextIndex;
   session.updatedAt = Date.now();
   await saveSession(session);
+
+  updateGenerationProgress(
+    4,
+    `✨ Evolved to v${nextIndex} successfully!`,
+    `Version ${nextIndex} active • Saved in session memory`,
+    'ready'
+  );
 
   const updatedChips = extractOrGenerateChips(repairResult.code, repairResult.parameters, session.archetype);
 

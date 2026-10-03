@@ -72,8 +72,8 @@
 
     <!-- Main Content Area -->
     <main class="app-main">
-      <!-- Empty State View -->
-      <section class="view-state" id="state-empty">
+      <!-- Empty State View (Retained as Fallback) -->
+      <section class="view-state" id="state-empty" style="display: none;">
         <div class="empty-card">
           <div class="empty-icon-glow">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -109,13 +109,13 @@
         </div>
       </section>
 
-      <!-- Active Simulation View -->
-      <section class="view-state" id="state-simulation" style="display: none;">
+      <!-- Active Simulation View (Default Living Canvas) -->
+      <section class="view-state" id="state-simulation">
         <div id="sim-verifying-banner" style="display: none; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; padding: 6px 10px; font-size: 11px; color: #38bdf8; margin-bottom: 10px; text-align: center;">⚡ Running pre-flight safety verification in background...</div>
 
         <div class="sim-header-card">
-          <h2 id="sim-title">Simulation Title</h2>
-          <p id="sim-desc">Simulation description will appear here.</p>
+          <h2 id="sim-title">SimIt Copilot</h2>
+          <p id="sim-desc">Zero-prompt interactive simulations. Highlight formulas, algorithms, or concepts on any web page and right-click "SimIt" — or prompt below.</p>
         </div>
 
         <div class="iframe-container">
@@ -158,7 +158,7 @@
         <!-- Refinement Chat Bar -->
         <div class="refinement-dock" id="refinement-dock">
           <div class="refinement-input-row">
-            <input type="text" id="refinement-input" placeholder="Refine simulation (e.g. 'set tau to 2.5', 'add entropy curve')..." autocomplete="off" />
+            <input type="text" id="refinement-input" placeholder="Enter concept (e.g. 'double pendulum', 'BFS') or refine simulation..." autocomplete="off" />
             <div class="refinement-actions">
               <button class="btn-refinement-action" id="btn-toggle-code-terminal" type="button" title="View Simulation Code in Terminal">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -172,7 +172,7 @@
                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                 </svg>
               </button>
-              <button class="btn-refinement-send" id="btn-refinement-send" type="button" title="Send refinement">
+              <button class="btn-refinement-send" id="btn-refinement-send" type="button" title="Send prompt or refinement">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <line x1="22" y1="2" x2="11" y2="13"></line>
                   <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
@@ -180,7 +180,28 @@
               </button>
             </div>
           </div>
-          <div class="refinement-status" id="refinement-status" style="display: none;"></div>
+          <!-- Morphing Generation & Evolution Pipeline Status -->
+          <div class="refinement-status" id="refinement-status" style="display: none;">
+            <div class="status-pipeline-capsule" id="status-pipeline-capsule">
+              <div class="pipeline-pulse-indicator" id="pipeline-pulse-indicator">
+                <span class="pulse-beacon"></span>
+                <span class="pulse-wave"></span>
+              </div>
+              <div class="pipeline-content">
+                <div class="pipeline-stage-text" id="pipeline-stage-text">Analyzing intent...</div>
+                <div class="pipeline-stage-detail" id="pipeline-stage-detail">Extracting equations and context</div>
+              </div>
+              <div class="pipeline-steps" id="pipeline-steps">
+                <span class="step-dot active" id="step-dot-1" title="Think: Archetype & Intent">🧠</span>
+                <span class="step-connector" id="step-conn-1"></span>
+                <span class="step-dot" id="step-dot-2" title="Code: Model Code Synthesis">⚡</span>
+                <span class="step-connector" id="step-conn-2"></span>
+                <span class="step-dot" id="step-dot-3" title="Test: Offscreen Sandbox Harness">🧪</span>
+                <span class="step-connector" id="step-conn-3"></span>
+                <span class="step-dot" id="step-dot-4" title="Mount: Interactive Runtime">🚀</span>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

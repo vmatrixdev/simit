@@ -86,6 +86,282 @@ const btnSaveSettings = document.getElementById('btn-save-settings') as HTMLButt
 const btnTestConnection = document.getElementById('btn-test-connection') as HTMLButtonElement;
 const settingsStatusMsg = document.getElementById('settings-status-msg') as HTMLElement;
 
+export const WELCOME_SIMULATION_CODE = `export default {
+  title: "SimIt Copilot",
+  description: "Interactive visualizer copilot. Highlight formulas, algorithms, or concepts on any page and right-click 'SimIt' — or prompt below.",
+  parameters: [
+    { id: "particles", label: "Particle Density", type: "slider", min: 20, max: 80, step: 5, default: 45, unit: "nodes" },
+    { id: "speed", label: "Oscillation Speed", type: "slider", min: 0.2, max: 2.5, step: 0.1, default: 1.0, unit: "x" },
+    { id: "connectDist", label: "Coupling Radius", type: "slider", min: 60, max: 180, step: 10, default: 110, unit: "px" }
+  ],
+  init(container, params) {
+    this.container = container;
+    this.params = { ...params };
+    const canvas = document.createElement('canvas');
+    canvas.style.cssText = 'width: 100%; height: 100%; display: block; background: radial-gradient(circle at 50% 35%, #0c1427 0%, #050811 100%); cursor: crosshair;';
+    container.appendChild(canvas);
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+
+    const resize = () => {
+      const rect = container.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = (rect.width || 360) * dpr;
+      canvas.height = (rect.height || 480) * dpr;
+      this.ctx.resetTransform?.();
+      this.ctx.scale(dpr, dpr);
+      this.w = rect.width || 360;
+      this.h = rect.height || 480;
+      this.initNodes();
+    };
+    this.resize = resize;
+    resize();
+    this.ro = new ResizeObserver(resize);
+    this.ro.observe(container);
+
+    this.mouse = { x: -1000, y: -1000, isDown: false, pulse: 0 };
+    canvas.addEventListener('pointermove', (e) => {
+      const r = canvas.getBoundingClientRect();
+      this.mouse.x = e.clientX - r.left;
+      this.mouse.y = e.clientY - r.top;
+    });
+    canvas.addEventListener('pointerdown', (e) => {
+      const r = canvas.getBoundingClientRect();
+      this.mouse.x = e.clientX - r.left;
+      this.mouse.y = e.clientY - r.top;
+      this.mouse.isDown = true;
+      this.mouse.pulse = 1.0;
+    });
+    window.addEventListener('pointerup', () => { this.mouse.isDown = false; });
+
+    let lastT = performance.now();
+    const loop = (t) => {
+      const dt = Math.min(0.05, (t - lastT) / 1000);
+      lastT = t;
+      this.update(dt);
+      this.draw();
+      this.raf = requestAnimationFrame(loop);
+    };
+    this.raf = requestAnimationFrame(loop);
+  },
+  initNodes() {
+    const count = this.params.particles || 45;
+    this.nodes = [];
+    for (let i = 0; i < count; i++) {
+      this.nodes.push({
+        x: Math.random() * this.w,
+        y: Math.random() * this.h,
+        vx: (Math.random() - 0.5) * 35,
+        vy: (Math.random() - 0.5) * 35,
+        baseR: 2 + Math.random() * 2.5,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+  },
+  update(dt) {
+    const spd = this.params.speed || 1.0;
+    const count = Math.round(this.params.particles || 45);
+    while (this.nodes.length < count) {
+      this.nodes.push({
+        x: Math.random() * this.w,
+        y: Math.random() * this.h,
+        vx: (Math.random() - 0.5) * 35,
+        vy: (Math.random() - 0.5) * 35,
+        baseR: 2 + Math.random() * 2.5,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+    if (this.nodes.length > count) this.nodes.length = count;
+
+    if (this.mouse.pulse > 0) {
+      this.mouse.pulse = Math.max(0, this.mouse.pulse - dt * 1.5);
+    }
+
+    for (const n of this.nodes) {
+      n.phase += dt * 2 * spd;
+      n.x += n.vx * dt * spd;
+      n.y += n.vy * dt * spd;
+
+      const dx = this.mouse.x - n.x;
+      const dy = this.mouse.y - n.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 140 && dist > 1) {
+        const force = (140 - dist) / 140;
+        const sign = this.mouse.isDown ? -1 : 1;
+        n.x += (dx / dist) * force * 50 * dt * sign;
+        n.y += (dy / dist) * force * 50 * dt * sign;
+      }
+
+      if (n.x < 10) { n.x = 10; n.vx *= -1; }
+      if (n.x > this.w - 10) { n.x = this.w - 10; n.vx *= -1; }
+      if (n.y < 10) { n.y = 10; n.vy *= -1; }
+      if (n.y > this.h - 10) { n.y = this.h - 10; n.vy *= -1; }
+    }
+  },
+  draw() {
+    const { ctx, w, h, nodes, mouse, params } = this;
+    if (!ctx || !w || !h) return;
+    ctx.clearRect(0, 0, w, h);
+
+    const maxDist = params.connectDist || 110;
+
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const d = Math.hypot(nodes[i].x - nodes[j].x, nodes[i].y - nodes[j].y);
+        if (d < maxDist) {
+          const alpha = (1 - d / maxDist) * 0.45;
+          ctx.strokeStyle = \`rgba(56, 189, 248, \${alpha})\`;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(nodes[i].x, nodes[i].y);
+          ctx.lineTo(nodes[j].x, nodes[j].y);
+          ctx.stroke();
+        }
+      }
+    }
+
+    for (const n of nodes) {
+      const r = n.baseR + Math.sin(n.phase) * 0.8;
+      ctx.fillStyle = '#38bdf8';
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (mouse.pulse > 0) {
+      const pulseR = (1 - mouse.pulse) * 90;
+      ctx.strokeStyle = \`rgba(245, 158, 11, \${mouse.pulse * 0.7})\`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(mouse.x, mouse.y, pulseR, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    const cx = w / 2;
+    const cy = h / 2 - 10;
+
+    ctx.save();
+    const boxW = Math.min(290, w - 36);
+    const boxH = 130;
+    const bx = cx - boxW / 2;
+    const by = cy - boxH / 2;
+
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.28)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(bx, by, boxW, boxH, 12) : ctx.rect(bx, by, boxW, boxH);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = '600 12.5px system-ui, -apple-system, sans-serif';
+    ctx.fillText('✦ READY TO SIMULATE', cx, by + 25);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '11px system-ui, -apple-system, sans-serif';
+    ctx.fillText('Highlight text or equation on page', cx, by + 50);
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = '600 12px system-ui, -apple-system, sans-serif';
+    ctx.fillText('➔ Right-click "SimIt"', cx, by + 69);
+
+    ctx.fillStyle = '#64748b';
+    ctx.font = '10.5px system-ui, -apple-system, sans-serif';
+    ctx.fillText('— or enter a prompt below —', cx, by + 92);
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = '10px monospace';
+    ctx.fillText('Interactive Canvas Active (Drag to perturb)', cx, by + 114);
+
+    ctx.restore();
+  },
+  update(newParams) {
+    this.params = { ...this.params, ...newParams };
+  },
+  destroy() {
+    cancelAnimationFrame(this.raf);
+    this.ro?.disconnect();
+  }
+};`;
+
+let progressHideTimeout: any = null;
+
+/**
+ * Updates the smooth morphing pipeline status capsule beneath the chat box
+ */
+export function setMorphingProgress(
+  step: 1 | 2 | 3 | 4,
+  title: string,
+  detail: string = '',
+  stageName: 'think' | 'code' | 'test' | 'load' | 'ready' | 'error' = 'think',
+  autoHideMs?: number
+) {
+  if (progressHideTimeout) {
+    clearTimeout(progressHideTimeout);
+    progressHideTimeout = null;
+  }
+
+  const capsule = document.getElementById('status-pipeline-capsule');
+  const stageText = document.getElementById('pipeline-stage-text');
+  const stageDetail = document.getElementById('pipeline-stage-detail');
+
+  if (refinementStatus) {
+    refinementStatus.style.display = 'block';
+  }
+
+  if (capsule) {
+    capsule.setAttribute('data-stage', stageName);
+  }
+
+  if (stageText) {
+    stageText.textContent = title;
+    stageText.classList.remove('morph-in');
+    void stageText.offsetWidth; // Force reflow for smooth re-trigger
+    stageText.classList.add('morph-in');
+  }
+
+  if (stageDetail) {
+    stageDetail.textContent = detail;
+    stageDetail.classList.remove('morph-in');
+    void stageDetail.offsetWidth;
+    stageDetail.classList.add('morph-in');
+  }
+
+  // Update step dots (1: Think, 2: Code, 3: Test, 4: Mount/Ready)
+  for (let s = 1; s <= 4; s++) {
+    const dot = document.getElementById(`step-dot-${s}`);
+    const conn = document.getElementById(`step-conn-${s}`);
+
+    if (dot) {
+      dot.className = 'step-dot';
+      if (stageName === 'ready') {
+        dot.classList.add('completed');
+        if (s === 4) dot.classList.add('active');
+      } else if (s < step) {
+        dot.classList.add('completed');
+      } else if (s === step) {
+        dot.classList.add('active');
+      }
+    }
+
+    if (conn) {
+      conn.className = 'step-connector';
+      if (s < step || stageName === 'ready') {
+        conn.classList.add('active');
+      }
+    }
+  }
+
+  if (autoHideMs && autoHideMs > 0) {
+    progressHideTimeout = setTimeout(() => {
+      if (refinementStatus && stageName === 'ready') {
+        refinementStatus.style.display = 'none';
+      }
+    }, autoHideMs);
+  }
+}
+
 export interface VersionItem {
   id: string;
   versionIndex: number;
@@ -381,12 +657,20 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
     if (!message || !message.type) return;
 
     switch (message.type) {
-      case 'SIMULATION_LOADING':
-        // Only switch to loading view if simulation is not already actively displayed
-        if (stateSimulation.style.display !== 'flex') {
-          setViewState('loading');
-          setStatusPill('Synthesizing');
+      case 'GENERATION_PROGRESS':
+        if (message.payload) {
+          const { step, title, detail, stageName } = message.payload;
+          setMorphingProgress(step, title, detail, stageName, stageName === 'ready' ? 5000 : undefined);
+          if (stageName === 'think' || stageName === 'code') setStatusPill('Synthesizing');
+          if (stageName === 'test') setStatusPill('Verifying');
+          if (stageName === 'load' || stageName === 'ready') setStatusPill('Active');
+          if (stageName === 'error') setStatusPill('Error');
         }
+        break;
+
+      case 'SIMULATION_LOADING':
+        setMorphingProgress(1, message.title || 'Harvesting Context...', message.description || '', 'think');
+        setStatusPill('Synthesizing');
         loadingTitle.textContent = message.title || 'Synthesizing Simulation...';
         loadingDesc.textContent = message.description || 'Ingesting technical context.';
 
@@ -450,6 +734,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
         const simVerifyingBanner = document.getElementById('sim-verifying-banner');
         if (message.isOptimistic) {
           setStatusPill('Verifying');
+          setMorphingProgress(3, 'Sandbox Pre-Flight Verification...', 'Testing in isolated offscreen sandbox', 'test');
           if (simVerifyingBanner) {
             simVerifyingBanner.style.display = 'block';
             simVerifyingBanner.textContent = '⚡ Running pre-flight safety verification in background...';
@@ -457,6 +742,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
           }
         } else {
           setStatusPill('Active');
+          setMorphingProgress(4, 'Simulation Ready!', 'Interactive runtime active • Explorable', 'ready', 5000);
           if (simVerifyingBanner) {
             simVerifyingBanner.style.display = 'none';
           }
@@ -471,6 +757,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
           activeCode = message.rawCode;
         }
 
+        setMorphingProgress(3, 'Generation Error', message.errorMessage || 'Unable to build simulation', 'error');
         const verifyingBanner = document.getElementById('sim-verifying-banner');
         if (stateSimulation.style.display === 'flex' && activeCode) {
           // Keep active simulation on screen; notify user via status banner
@@ -983,15 +1270,11 @@ function executeRefinement(userMessage: string, chipId?: string) {
           <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
         </svg>
       `;
-      btnRefinementSend.title = 'Send refinement';
+      btnRefinementSend.title = 'Send prompt or refinement';
     }
   };
 
-  if (refinementStatus) {
-    refinementStatus.style.display = 'block';
-    refinementStatus.style.color = '#38bdf8';
-    refinementStatus.textContent = '⚡ Analyzing refinement intent...';
-  }
+  setMorphingProgress(1, 'Analyzing Refinement Intent...', 'Determining parametric tweak vs structural evolution', 'think');
 
   if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
     const req: EvolutionRequestMessage = {
@@ -1007,10 +1290,7 @@ function executeRefinement(userMessage: string, chipId?: string) {
       resetChatInput(res && res.status === 'ok');
 
       if (!res) {
-        if (refinementStatus) {
-          refinementStatus.style.color = '#ef4444';
-          refinementStatus.textContent = 'No response received from background orchestrator.';
-        }
+        setMorphingProgress(3, 'Connection Error', 'No response received from background orchestrator.', 'error');
         return;
       }
 
@@ -1024,10 +1304,7 @@ function executeRefinement(userMessage: string, chipId?: string) {
           });
           renderControlsDock(activeParameters, currentParamsState);
 
-          if (refinementStatus) {
-            refinementStatus.style.color = '#10b981';
-            refinementStatus.textContent = '⚡ Applied parameter tweak directly (0ms LLM overhead).';
-          }
+          setMorphingProgress(4, 'Parameter Updated (0ms overhead)', 'Direct parameter patch applied to simulation', 'ready', 4000);
           return;
         }
 
@@ -1039,10 +1316,7 @@ function executeRefinement(userMessage: string, chipId?: string) {
           });
           renderControlsDock(activeParameters, currentParamsState);
 
-          if (refinementStatus) {
-            refinementStatus.style.color = '#10b981';
-            refinementStatus.textContent = '🔄 Parameters reset to defaults.';
-          }
+          setMorphingProgress(4, 'Parameters Reset', 'Restored initial module default parameters', 'ready', 4000);
           return;
         }
 
@@ -1070,18 +1344,18 @@ function executeRefinement(userMessage: string, chipId?: string) {
           const simCodePreview = document.getElementById('sim-code-preview');
           if (simCodePreview) simCodePreview.textContent = activeCode;
 
-          if (refinementStatus) {
-            refinementStatus.style.color = '#10b981';
-            refinementStatus.textContent = `✨ Evolved to v${activeVersionIndex} successfully!`;
-          }
+          setMorphingProgress(
+            4,
+            `✨ Evolved to v${activeVersionIndex} successfully!`,
+            `Version ${activeVersionIndex} saved to session memory`,
+            'ready',
+            5000
+          );
           return;
         }
       }
 
-      if (refinementStatus) {
-        refinementStatus.style.color = '#ef4444';
-        refinementStatus.textContent = `⚠️ Refinement failed: ${res.errorMessage || 'Unknown error'}`;
-      }
+      setMorphingProgress(3, 'Refinement Failed', res?.errorMessage || 'Unknown error occurred.', 'error');
     });
   } else {
     resetChatInput(false);
@@ -1110,11 +1384,7 @@ function renderCloudEscalation(decision: RoutingDecision) {
 function handleCloudEscalateClick() {
   if (!activeCode) return;
 
-  if (refinementStatus) {
-    refinementStatus.style.display = 'block';
-    refinementStatus.style.color = '#f59e0b';
-    refinementStatus.textContent = '⚡ Escalating simulation to frontier cloud model...';
-  }
+  setMorphingProgress(2, 'Escalating to Frontier Cloud Model...', 'Formulating context for deep reasoning tier', 'code');
   setStatusPill('Synthesizing');
 
   if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
@@ -1151,21 +1421,20 @@ function handleCloudEscalateClick() {
         if (simCodePreview) simCodePreview.textContent = activeCode;
 
         setStatusPill('Active');
-        if (refinementStatus) {
-          refinementStatus.style.color = '#10b981';
-          refinementStatus.textContent = `🚀 Frontier model generated v${activeVersionIndex} (${res.modelName || res.provider})!`;
-        }
+        setMorphingProgress(
+          4,
+          `🚀 Frontier model generated v${activeVersionIndex}!`,
+          `${res.modelName || res.provider} generation complete`,
+          'ready',
+          5000
+        );
       } else {
         setStatusPill('Active');
-        if (refinementStatus) {
-          refinementStatus.style.color = '#ef4444';
-          refinementStatus.textContent = `⚠️ Cloud escalation failed: ${res?.errorMessage || 'Check API key in Settings'}`;
-        }
+        setMorphingProgress(3, 'Cloud Escalation Failed', res?.errorMessage || 'Check API key in Settings', 'error');
       }
     });
   }
 }
-
 
 // Event Listeners for Refinement Chat & Cloud Escalation
 btnRefinementSend?.addEventListener('click', () => {
@@ -1182,3 +1451,41 @@ refinementInput?.addEventListener('keydown', (e) => {
 });
 
 btnCloudEscalate?.addEventListener('click', handleCloudEscalateClick);
+
+/**
+ * Initializes Side Panel State on Startup
+ * Inspects if a background generation is actively running (e.g. triggered via context menu)
+ * If not, mounts the interactive living welcome simulation.
+ */
+function initSidepanelState() {
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+    chrome.runtime.sendMessage({ type: 'GET_ACTIVE_GENERATION_STATE' }, (response) => {
+      if (response && response.status === 'ok' && response.payload && response.payload.active) {
+        const { step, title, detail, stageName } = response.payload;
+        setMorphingProgress(step, title, detail, stageName);
+        if (stageName === 'think' || stageName === 'code') setStatusPill('Synthesizing');
+        if (stageName === 'test') setStatusPill('Verifying');
+        return;
+      }
+
+      // If no active generation and no custom simulation loaded yet, mount welcome simulation
+      if (!activeCode) {
+        simTitle.textContent = 'SimIt Copilot';
+        simDesc.textContent = 'Zero-prompt interactive simulations. Highlight formulas, algorithms, or concepts on any web page and right-click "SimIt" — or prompt below.';
+        initSimulationInIframe(WELCOME_SIMULATION_CODE);
+        setStatusPill('Ready');
+      }
+    });
+  } else {
+    if (!activeCode) {
+      simTitle.textContent = 'SimIt Copilot';
+      simDesc.textContent = 'Zero-prompt interactive simulations. Highlight formulas, algorithms, or concepts on any web page and right-click "SimIt" — or prompt below.';
+      initSimulationInIframe(WELCOME_SIMULATION_CODE);
+      setStatusPill('Ready');
+    }
+  }
+}
+
+// Boot up sidepanel state
+initSidepanelState();
+
