@@ -9,6 +9,8 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
     "types": ["chrome", "node"]
   },
   "include": ["src/**/*", "tests/**/*"]

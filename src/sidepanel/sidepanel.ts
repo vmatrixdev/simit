@@ -89,22 +89,24 @@ const settingsStatusMsg = document.getElementById('settings-status-msg') as HTML
 export const WELCOME_SIMULATION_CODE = `export default {
   title: "SimIt: Highlight to Interactive Reality",
   description: "Watch a human reader highlight technical text on a webpage and click SimIt. See the agent loop convert it into a live 60 FPS simulation. Pan & zoom across the journey!",
-  parameters: [
-    { id: "example", label: "Example Scenario", type: "select", options: ["Auto-Cycle All 3", "1. Duffing Attractor (Math)", "2. Sequence Diagram (Mermaid)", "3. Relational ERD (Schema)"], default: "Auto-Cycle All 3" },
-    { id: "viewMode", label: "Camera View", type: "select", options: ["Auto-Tour", "Overview (All)", "1. Boring Webpage", "2. Agent Loop", "3. Live Payoff Sim"], default: "Auto-Tour" },
-    { id: "speed", label: "Story Velocity", type: "slider", min: 0.5, max: 2.5, step: 0.1, default: 1.0, unit: "x" },
-    { id: "gamma", label: "Duffing Chaos (γ)", type: "slider", min: 0.1, max: 0.65, step: 0.01, default: 0.37 },
-    { id: "resetJourney", label: "↺ Restart Current Story", type: "button" }
-  ],
+  parameters: [],
   init(container, params) {
     this.container = container;
-    this.params = { ...params };
-    this.viewMode = params.viewMode || "Auto-Tour";
-    this.example = params.example || "Auto-Cycle All 3";
+    this.params = { speed: 1.0, gamma: 0.37, ...(params || {}) };
+    this.viewMode = (params && params.viewMode) || "Auto-Tour";
+    this.example = (params && params.example) || "Auto-Cycle All 3";
 
     // Virtual world coordinates (widescreen canvas)
     this.worldW = 1080;
     this.worldH = 540;
+
+    // Active world width dynamically expands as pages appear (360 -> 720 -> 1080)
+    this.getActiveWorldWidth = () => {
+      const localT = this.getLocalTime();
+      if (localT < 6.4) return 360;
+      if (localT < 9.8) return 720;
+      return 1080;
+    };
 
     // Camera state
     this.camX = 0;
@@ -166,6 +168,17 @@ export const WELCOME_SIMULATION_CODE = `export default {
             const modes = ["1. Boring Webpage", "2. Agent Loop", "3. Live Payoff Sim", "Overview (All)"];
             this.viewMode = modes[i];
             this.userInteractingTimer = 6.0;
+
+            const curIdx = this.getCurrentExampleIndex();
+            const curLocalT = this.getLocalTime();
+            // Fast-forward story if clicking an act that hasn't materialized yet
+            if (i === 1 && curLocalT < 6.4) {
+              this.storyTime = curIdx * this.exampleDuration + 6.4;
+            } else if (i === 2 && curLocalT < 9.8) {
+              this.storyTime = curIdx * this.exampleDuration + 9.8;
+            } else if (i === 0) {
+              this.camTargetX = 0;
+            }
             return;
           }
         }
@@ -260,7 +273,8 @@ export const WELCOME_SIMULATION_CODE = `export default {
       const rect = canvas.getBoundingClientRect();
       const px = e.clientX - rect.left;
       const dx = (px - this.dragStartX) / this.camZoom;
-      const maxCamX = Math.max(0, this.worldW - this.w / this.camZoom);
+      const activeW = this.getActiveWorldWidth();
+      const maxCamX = Math.max(0, activeW - this.w / this.camZoom);
       this.camTargetX = Math.max(0, Math.min(maxCamX, this.dragStartCamX - dx));
       this.camX = this.camTargetX;
     });
@@ -325,11 +339,12 @@ export const WELCOME_SIMULATION_CODE = `export default {
       this.userInteractingTimer -= dt;
     }
 
-    // Determine camera target based on viewMode or Auto-Tour
-    const maxCamX = Math.max(0, this.worldW - this.w / (this.camZoom || 1.0));
+    const activeW = this.getActiveWorldWidth();
+    const maxCamX = Math.max(0, activeW - this.w / (this.camZoom || 1.0));
+
     if (this.viewMode === "Overview (All)") {
       this.camTargetX = 0;
-      this.camTargetZoom = Math.min(1.0, (this.w - 16) / this.worldW);
+      this.camTargetZoom = Math.min(1.0, (this.w - 16) / activeW);
     } else if (this.viewMode === "1. Boring Webpage") {
       this.camTargetX = 0;
       this.camTargetZoom = 1.0;
@@ -343,7 +358,11 @@ export const WELCOME_SIMULATION_CODE = `export default {
       // Auto-Tour mode: smoothly glide camera as story unfolds
       this.camTargetZoom = 1.0;
       if (this.userInteractingTimer <= 0) {
-        if (localT < 6.8) {
+        if (localT < 0.25) {
+          // New scenario starts: snap immediately to the fresh paper
+          this.camX = 0;
+          this.camTargetX = 0;
+        } else if (localT < 6.4) {
           this.camTargetX = 0;
         } else if (localT < 9.8) {
           this.camTargetX = Math.min(maxCamX, 360);
@@ -423,23 +442,50 @@ export const WELCOME_SIMULATION_CODE = `export default {
     const currentIdx = this.getCurrentExampleIndex();
     const localT = this.getLocalTime();
 
+    // Subtle dissolve at boundary of scenario loop
+    let sceneAlpha = 1.0;
+    if (localT > 13.6) {
+      sceneAlpha = Math.max(0.1, 1.0 - (localT - 13.6) / 0.4);
+    } else if (localT < 0.4) {
+      sceneAlpha = Math.min(1.0, 0.1 + (localT / 0.4) * 0.9);
+    }
+
     // Apply Virtual Camera Transform
     ctx.save();
+    ctx.globalAlpha = sceneAlpha;
     const offsetY = Math.max(0, (h - this.worldH * this.camZoom) / 2);
     ctx.translate(-this.camX * this.camZoom, offsetY);
     ctx.scale(this.camZoom, this.camZoom);
 
-    // Draw panoramic grid & connecting conduits
-    this.drawPanoramicConduits(ctx, currentIdx);
+    // Draw panoramic grid & connecting conduits (only across active pages)
+    this.drawPanoramicConduits(ctx, currentIdx, localT);
 
-    // ACT 1: The Boring Webpage & Human Reader (x: 20 to 340)
+    // PAGE 1: The Paper / Webpage (ALWAYS rendered for active scenario)
     this.drawAct1BoringWebpage(ctx, currentIdx, localT);
 
-    // ACT 2: The Agent Loop Pipeline (x: 360 to 720)
-    this.drawAct2AgentLoop(ctx, currentIdx, localT);
+    // PAGE 2: The Agent Loop Pipeline (appears on right at t >= 6.4s, Paper STAYS)
+    if (localT >= 6.4) {
+      const enterP = Math.min(1.0, (localT - 6.4) / 0.45);
+      const easeP = 0.5 - 0.5 * Math.cos(Math.PI * enterP);
+      ctx.save();
+      ctx.globalAlpha = sceneAlpha * easeP;
+      const slideX = (1.0 - easeP) * 35;
+      ctx.translate(slideX, 0);
+      this.drawAct2AgentLoop(ctx, currentIdx, localT);
+      ctx.restore();
+    }
 
-    // ACT 3: The Live Payoff Simulation (x: 740 to 1060)
-    this.drawAct3PayoffSimulation(ctx, currentIdx, localT);
+    // PAGE 3: The Output Payoff Simulation (appears on right at t >= 9.8s, previous TWO STAY)
+    if (localT >= 9.8) {
+      const enterP = Math.min(1.0, (localT - 9.8) / 0.45);
+      const easeP = 0.5 - 0.5 * Math.cos(Math.PI * enterP);
+      ctx.save();
+      ctx.globalAlpha = sceneAlpha * easeP;
+      const slideX = (1.0 - easeP) * 35;
+      ctx.translate(slideX, 0);
+      this.drawAct3PayoffSimulation(ctx, currentIdx, localT);
+      ctx.restore();
+    }
 
     ctx.restore();
 
@@ -447,18 +493,22 @@ export const WELCOME_SIMULATION_CODE = `export default {
     this.drawScreenHUD(ctx, currentIdx);
   },
 
-  drawPanoramicConduits(ctx, exIdx) {
-    // Subtle background circuit grid
+  drawPanoramicConduits(ctx, exIdx, localT) {
+    const activeW = this.getActiveWorldWidth();
+
+    // Subtle background circuit grid only across visible pages
     ctx.strokeStyle = 'rgba(56, 189, 248, 0.04)';
     ctx.lineWidth = 1;
-    for (let x = 0; x <= this.worldW; x += 40) {
+    for (let x = 0; x <= activeW; x += 40) {
       ctx.beginPath();
       ctx.moveTo(x, 20);
       ctx.lineTo(x, this.worldH - 20);
       ctx.stroke();
     }
 
-    // Glowing data conduit connecting Act 1 -> Act 2 -> Act 3
+    // Conduits only appear once Agent appears (localT >= 6.4s)
+    if (localT < 6.4) return;
+
     const conduitColor = exIdx === 0 ? 'rgba(56, 189, 248, 0.25)' : (exIdx === 1 ? 'rgba(168, 85, 247, 0.25)' : 'rgba(16, 185, 129, 0.25)');
     ctx.strokeStyle = conduitColor;
     ctx.lineWidth = 2.5;
@@ -467,7 +517,11 @@ export const WELCOME_SIMULATION_CODE = `export default {
     ctx.moveTo(330, 275);
     ctx.bezierCurveTo(360, 275, 370, 160, 420, 160);
     ctx.lineTo(670, 160);
-    ctx.bezierCurveTo(710, 160, 720, 275, 750, 275);
+
+    // Only connect to Act 3 if Output has appeared (localT >= 9.8s)
+    if (localT >= 9.8) {
+      ctx.bezierCurveTo(710, 160, 720, 275, 750, 275);
+    }
     ctx.stroke();
     ctx.setLineDash([]);
 
@@ -479,8 +533,8 @@ export const WELCOME_SIMULATION_CODE = `export default {
         const lt = t / 0.2;
         px = 330 + (420 - 330) * lt;
         py = 275 + (160 - 275) * lt;
-      } else if (t < 0.8) {
-        const lt = (t - 0.2) / 0.6;
+      } else if (t < 0.8 || localT < 9.8) {
+        const lt = Math.min(1.0, (t - 0.2) / 0.6);
         px = 420 + (670 - 420) * lt;
         py = 160;
       } else {
@@ -840,11 +894,9 @@ export const WELCOME_SIMULATION_CODE = `export default {
   },
 
   drawAct3PayoffSimulation(ctx, exIdx, t) {
-    const isLive = t >= 9.8;
-
     // Simulated Side Panel Frame
     ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
-    ctx.strokeStyle = isLive ? 'rgba(56, 189, 248, 0.65)' : 'rgba(56, 189, 248, 0.2)';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.65)';
     ctx.lineWidth = 1.5;
     this.roundRect(ctx, 740, 40, 320, 450, 12, true, true);
 
@@ -852,16 +904,10 @@ export const WELCOME_SIMULATION_CODE = `export default {
     ctx.font = 'bold 11px -apple-system, sans-serif';
     ctx.fillText('3. Live Interactive Payoff in SimIt', 750, 30);
 
-    // If particles haven't passed offscreen verification yet, show Awaiting / Synthesizing State!
-    if (!isLive) {
-      this.drawAct3Standby(ctx, t);
-      return;
-    }
-
     // Materialization shockwave when live triggers at 9.8s
     if (t < 10.5) {
       const shockP = (t - 9.8) / 0.7;
-      ctx.strokeStyle = \`rgba(56, 189, 248, \${1.0 - shockP})\`;
+      ctx.strokeStyle = 'rgba(56, 189, 248, ' + (1.0 - shockP) + ')';
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(750, 275, 280 * shockP, 0, Math.PI * 2);
@@ -875,81 +921,6 @@ export const WELCOME_SIMULATION_CODE = `export default {
       this.drawPayoffSequence(ctx);
     } else {
       this.drawPayoffERD(ctx);
-    }
-  },
-
-  drawAct3Standby(ctx, t) {
-    // Sidepanel Mini Header
-    ctx.fillStyle = 'rgba(30, 41, 59, 0.8)';
-    this.roundRect(ctx, 740, 40, 320, 52, 12, true, false);
-
-    const isSynthesizing = t >= 6.8;
-
-    ctx.fillStyle = '#f8fafc';
-    ctx.font = 'bold 12.5px -apple-system, sans-serif';
-    ctx.fillText('SimIt Interactive Copilot', 758, 64);
-
-    ctx.fillStyle = isSynthesizing ? '#38bdf8' : '#94a3b8';
-    ctx.font = '9.5px ui-monospace, monospace';
-    ctx.fillText(isSynthesizing ? '⚡ Offscreen Synthesis & Verification in Progress...' : '✦ Standby • Awaiting SimIt Trigger', 758, 80);
-
-    // Central Radar / Mesh Area
-    const boxX = 755;
-    const boxY = 100;
-    const boxW = 290;
-    const boxH = 370;
-
-    ctx.fillStyle = '#060a17';
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.15)';
-    this.roundRect(ctx, boxX, boxY, boxW, boxH, 8, true, true);
-
-    // Subtle dark matrix grid
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.05)';
-    ctx.lineWidth = 1;
-    for (let gx = boxX + 20; gx < boxX + boxW; gx += 25) {
-      ctx.beginPath(); ctx.moveTo(gx, boxY); ctx.lineTo(gx, boxY + boxH); ctx.stroke();
-    }
-    for (let gy = boxY + 20; gy < boxY + boxH; gy += 25) {
-      ctx.beginPath(); ctx.moveTo(boxX, gy); ctx.lineTo(boxX + boxW, gy); ctx.stroke();
-    }
-
-    if (isSynthesizing) {
-      // Animated Radar Scanning Wave
-      const midX = boxX + boxW / 2;
-      const midY = boxY + boxH / 2;
-      const radarR = 50 + Math.sin(t * 5) * 15;
-
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(midX, midY, radarR, 0, Math.PI * 2); ctx.stroke();
-
-      ctx.fillStyle = '#38bdf8';
-      ctx.font = 'bold 12px -apple-system, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('🧪 Running Headless Smoke Test...', midX, midY + 85);
-
-      ctx.fillStyle = '#64748b';
-      ctx.font = '10px -apple-system, sans-serif';
-      ctx.fillText('Validating AST & Sandbox CSP Execution', midX, midY + 105);
-      ctx.textAlign = 'start';
-    } else {
-      // Waiting state
-      const midX = boxX + boxW / 2;
-      const midY = boxY + boxH / 2;
-
-      ctx.fillStyle = '#475569';
-      ctx.font = '18px -apple-system';
-      ctx.textAlign = 'center';
-      ctx.fillText('✨', midX, midY - 20);
-
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = 'bold 11.5px -apple-system, sans-serif';
-      ctx.fillText('Ready for Selection', midX, midY + 10);
-
-      ctx.fillStyle = '#64748b';
-      ctx.font = '10px -apple-system, sans-serif';
-      ctx.fillText('Highlight text on page & right-click SimIt', midX, midY + 30);
-      ctx.textAlign = 'start';
     }
   },
 
@@ -1345,8 +1316,11 @@ export const WELCOME_SIMULATION_CODE = `export default {
 
     ctx.fillStyle = '#94a3b8';
     ctx.font = '9px -apple-system, BlinkMacSystemFont, sans-serif';
-    const hint = w > 360 ? '• Drag to Pan ↔ • Use bottom-left (- / +) to Zoom' : '• Drag ↔ • Zoom (-/+)';
-    ctx.fillText(hint, w > 360 ? 190 : 155, 24);
+    const localT = this.getLocalTime();
+    let stepHint = '1. Reading Paper';
+    if (localT >= 9.8) stepHint = '3. Live Output Active';
+    else if (localT >= 6.4) stepHint = '2. Agent Synthesizing...';
+    ctx.fillText(stepHint, w > 360 ? 195 : 160, 24);
     ctx.restore();
 
     // Bottom Chapter Nav Pills (Fixed Screen Coordinates)
@@ -1354,22 +1328,32 @@ export const WELCOME_SIMULATION_CODE = `export default {
     const pillW = Math.min(78, (w - 30) / 4);
     const startX = 12;
     const chapters = [
-      { label: "1. Webpage", mode: "1. Boring Webpage" },
-      { label: "2. Agent Loop", mode: "2. Agent Loop" },
-      { label: "3. Live Sim", mode: "3. Live Payoff Sim" },
-      { label: "👁 Overview", mode: "Overview (All)" }
+      { label: "1. Paper", mode: "1. Boring Webpage", unlocked: true },
+      { label: "2. Agent", mode: "2. Agent Loop", unlocked: localT >= 6.4 },
+      { label: "3. Output", mode: "3. Live Payoff Sim", unlocked: localT >= 9.8 },
+      { label: "👁 Overview", mode: "Overview (All)", unlocked: true }
     ];
 
     chapters.forEach((ch, i) => {
       const bx = startX + i * (pillW + 4);
       const isSelected = this.viewMode === ch.mode;
 
-      ctx.fillStyle = isSelected ? 'rgba(56, 189, 248, 0.25)' : 'rgba(15, 23, 42, 0.85)';
-      ctx.strokeStyle = isSelected ? '#38bdf8' : 'rgba(56, 189, 248, 0.2)';
-      ctx.lineWidth = isSelected ? 1.5 : 1;
+      if (isSelected) {
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.25)';
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 1.5;
+      } else if (ch.unlocked) {
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.2)';
+        ctx.lineWidth = 1;
+      } else {
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.4)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+        ctx.lineWidth = 1;
+      }
       this.roundRect(ctx, bx, pillY, pillW, 24, 5, true, true);
 
-      ctx.fillStyle = isSelected ? '#ffffff' : '#94a3b8';
+      ctx.fillStyle = isSelected ? '#ffffff' : (ch.unlocked ? '#94a3b8' : '#475569');
       ctx.font = isSelected ? 'bold 9px -apple-system, sans-serif' : '8.5px -apple-system, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(ch.label, bx + pillW / 2, pillY + 16);
@@ -1579,16 +1563,19 @@ export function renderControlsDock(parameters: ParameterDefinition[], initialPar
   currentParamsState = { ...initialParams };
   controlsList.innerHTML = '';
 
-  if (!parameters || parameters.length === 0) {
-    controlsList.innerHTML = '<div style="font-size: 11px; color: #64748b; text-align: center; padding: 12px 0;">No adjustable parameters for this simulation.</div>';
+  const dock = document.getElementById('controls-dock');
+  if (activeCode === WELCOME_SIMULATION_CODE || !parameters || parameters.length === 0) {
+    if (dock) dock.style.display = 'none';
+    controlsList.innerHTML = '';
     return;
   }
+  if (dock) dock.style.display = '';
 
   parameters.forEach((param) => {
     const row = document.createElement('div');
     row.className = 'control-row';
 
-    const currentVal = currentParamsState[param.id] !== undefined ? currentParamsState[param.id] : param.default;
+    const currentVal = currentParamsState[param.id] !== undefined ? currentParamsState[param.id] : (param.default ?? false);
     currentParamsState[param.id] = currentVal;
 
     if (param.type === 'slider' || param.type === 'stepper') {

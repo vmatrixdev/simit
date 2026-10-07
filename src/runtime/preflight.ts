@@ -90,7 +90,7 @@ export function extractBoundaryParameters(parameters: ParameterDefinition[]): Pa
     } else if (p.type === 'select' && Array.isArray(p.options) && p.options.length > 0) {
       boundary[p.id] = p.options[p.options.length - 1];
     } else {
-      boundary[p.id] = p.default;
+      boundary[p.id] = p.default ?? false;
     }
   }
   return boundary;

@@ -56,6 +56,7 @@ function cleanupPane() {
   const paneDock = document.getElementById('pane-dock');
   if (paneDock) {
     paneDock.innerHTML = '';
+    paneDock.style.display = 'none';
     paneDock.style.left = '';
     paneDock.style.top = '';
     paneDock.style.right = '';
@@ -477,6 +478,9 @@ window.addEventListener('message', (event) => {
         if (PaneClass && paramsDef.length > 0) {
           try {
             const paneDock = document.getElementById('pane-dock');
+            if (paneDock) {
+              paneDock.style.display = 'block';
+            }
             activePane = new PaneClass({
               container: paneDock || undefined,
               title: 'Controls',

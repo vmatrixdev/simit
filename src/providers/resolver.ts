@@ -25,7 +25,7 @@ export const DEFAULT_BYOK_SETTINGS: BYOKStorageSettings = {
     },
     'google-gemini': {
       apiKey: '',
-      modelName: 'gemini-2.0-flash',
+      modelName: 'gemini-2.5-flash',
       temperature: 0.2
     },
     'openai-compatible': {
