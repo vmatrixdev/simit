@@ -6,17 +6,18 @@
   "directories": {
     "doc": "docs"
   },
+  "description": "Zero-prompt, real-time interactive visual simulations for technical papers, equations, and algorithms.",
+  "license": "ISC",
   "scripts": {
+    "setup": "bash scripts/setup.sh",
+    "dev": "bash scripts/dev.sh",
     "build": "vite build && mkdir -p dist/src/sandbox/vendor && cp -r src/sandbox/vendor/* dist/src/sandbox/vendor/",
+    "build:watch": "vite build --watch",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "npm run build && node --experimental-strip-types tests/e2e/simit.e2e.ts",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "devDependencies": {
     "@types/animejs": "^3.1.13",
     "@types/chrome": "^0.3.4",
