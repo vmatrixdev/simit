@@ -30,4 +30,5 @@ artifacts/
 .chrome*
 .browser-profile*
 tests/fixtures/downloads/
+*.zip
 
