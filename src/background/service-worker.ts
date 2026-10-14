@@ -28,6 +28,44 @@ import { executeAutonomousSimulationLoop } from '../runtime/agent-orchestrator';
 
 const CONTEXT_MENU_ID = 'simit-selection';
 
+let lastKnownSidepanelViewport: SimulationViewport | null = null;
+
+/**
+ * Resolves the active measured simulation viewport, prioritizing explicit context measurement,
+ * then cached sidepanel state, then persistent chrome.storage, and finally minimum fallback.
+ */
+export async function resolveActiveViewport(contextViewport?: { width: number; height: number }): Promise<SimulationViewport> {
+  if (contextViewport && contextViewport.width > 0 && contextViewport.height > 0) {
+    const vp: SimulationViewport = {
+      width: Math.max(320, Math.round(contextViewport.width)),
+      height: Math.max(380, Math.round(contextViewport.height))
+    };
+    lastKnownSidepanelViewport = vp;
+    return vp;
+  }
+
+  if (lastKnownSidepanelViewport) {
+    return lastKnownSidepanelViewport;
+  }
+
+  try {
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      const res = await chrome.storage.local.get('simit_sidepanel_viewport');
+      if (res && res.simit_sidepanel_viewport && res.simit_sidepanel_viewport.width > 0) {
+        lastKnownSidepanelViewport = {
+          width: Math.max(320, Math.round(res.simit_sidepanel_viewport.width)),
+          height: Math.max(380, Math.round(res.simit_sidepanel_viewport.height))
+        };
+        return lastKnownSidepanelViewport;
+      }
+    }
+  } catch (err) {
+    console.warn('[SimIt SW] Failed to read stored sidepanel viewport:', err);
+  }
+
+  return { width: 380, height: 450 };
+}
+
 
 /**
  * Dispatches test request to offscreen document or returns diagnostic error
@@ -105,22 +143,25 @@ export function updateGenerationProgress(
 }
 
 // 1. Setup Context Menu & Side Panel behavior on install
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: CONTEXT_MENU_ID,
-    title: 'SimIt',
-    contexts: ['selection']
-  });
-
-  if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
-    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((err) => {
-      console.warn('[SimIt SW] Error setting panel behavior:', err);
+if (typeof chrome !== 'undefined' && chrome.runtime?.onInstalled) {
+  chrome.runtime.onInstalled.addListener(() => {
+    chrome.contextMenus.create({
+      id: CONTEXT_MENU_ID,
+      title: 'SimIt',
+      contexts: ['selection']
     });
-  }
-});
+
+    if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
+      chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((err) => {
+        console.warn('[SimIt SW] Error setting panel behavior:', err);
+      });
+    }
+  });
+}
 
 // 2. Handle Right-Click "SimIt" Menu Click
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+if (typeof chrome !== 'undefined' && chrome.contextMenus?.onClicked) {
+  chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== CONTEXT_MENU_ID || !tab?.id) return;
 
   const tabId = tab.id;
@@ -184,6 +225,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   // Orchestrate model resolution and generation
   await orchestrateSimulationGeneration(harvestedContext);
 });
+}
+
 
 /**
  * Orchestrates prompt composition, model inference, and 1-shot pre-flight repair
@@ -248,10 +291,8 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
     description: `Synthesizing ${classification.archetype.replace(/_/g, ' ')} via ${provider.type}.`
   });
 
-  const viewport: SimulationViewport = {
-    width: harvestedContext.viewport?.width ? Math.max(320, harvestedContext.viewport.width) : 380,
-    height: harvestedContext.viewport?.height ? Math.max(380, harvestedContext.viewport.height) : 450
-  };
+  const viewport = await resolveActiveViewport(harvestedContext.viewport);
+  harvestedContext.viewport = viewport;
 
   const loopResult = await executeAutonomousSimulationLoop({
     context: harvestedContext,
@@ -350,7 +391,8 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
 }
 
 // 3. Listen for Messages from Side Panel or Test Harness
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
+  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message && message.type === 'GET_ACTIVE_GENERATION_STATE') {
     sendResponse({ status: 'ok', payload: activeGenerationStatus });
     return true;
@@ -383,6 +425,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       sendResponse({ status: 'error', errorMessage: err.message || String(err) });
     });
     return true;
+  }
+
+  if (message && message.type === 'SIDEPANEL_VIEWPORT_CHANGED') {
+    if (message.viewport && message.viewport.width > 0 && message.viewport.height > 0) {
+      lastKnownSidepanelViewport = {
+        width: Math.max(320, Math.round(message.viewport.width)),
+        height: Math.max(380, Math.round(message.viewport.height))
+      };
+    }
+    sendResponse({ status: 'ok' });
+    return false;
   }
 
   if (message && message.type === 'REPAIR_INTERACTIVE_SIM') {
@@ -420,9 +473,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 });
+}
+
 
 async function handleEvolutionRequest(message: EvolutionRequestMessage): Promise<EvolutionResponseMessage> {
   const userInput = message.userMessage || '';
+  const activeViewport = await resolveActiveViewport(message.viewport);
 
   const session = await getSession(message.sessionId);
   if (!session) {
@@ -448,7 +504,8 @@ async function handleEvolutionRequest(message: EvolutionRequestMessage): Promise
           headingLevel: 'H1',
           caption: null,
           paragraphSnippet: userInput
-        }
+        },
+        viewport: activeViewport
       };
       await orchestrateSimulationGeneration(harvestedContext);
       return {
@@ -539,8 +596,7 @@ async function handleEvolutionRequest(message: EvolutionRequestMessage): Promise
   });
 
   const prompt = formatCompactedUserPrompt(compacted, userInput);
-  const viewport: SimulationViewport = { width: 380, height: 450 };
-  const systemPrompt = buildSimulationSystemPrompt(viewport);
+  const systemPrompt = buildSimulationSystemPrompt(activeViewport);
 
   const generationRes = await provider.generateSimulation({
     systemPrompt,
@@ -558,7 +614,8 @@ async function handleEvolutionRequest(message: EvolutionRequestMessage): Promise
   const repairResult = await executePreFlightRepairLoop(
     generationRes.rawCode,
     provider,
-    dispatchPreflightToOffscreen
+    dispatchPreflightToOffscreen,
+    activeViewport
   );
 
   if (!repairResult.success) {
@@ -642,9 +699,9 @@ async function handleCloudEscalation(message: CloudEscalationRequestMessage): Pr
     };
   }
 
+  const activeViewport = await resolveActiveViewport(message.viewport);
   const prompt = `Advance this simulation into a high-fidelity, comprehensive mathematical model.\nSelected Excerpt:\n"""\n${message.selectedText}\n"""\nFormula: ${message.mathSnippet || 'N/A'}\nBase Code:\n<simulation_code>\n${message.currentCode}\n</simulation_code>\nSynthesize an advanced version with smooth dynamics, explicit scales, and full parameter explorations.`;
-  const viewport: SimulationViewport = { width: 380, height: 450 };
-  const systemPrompt = buildSimulationSystemPrompt(viewport);
+  const systemPrompt = buildSimulationSystemPrompt(activeViewport);
 
   const res = await provider.generateSimulation({
     systemPrompt,
@@ -655,7 +712,8 @@ async function handleCloudEscalation(message: CloudEscalationRequestMessage): Pr
   const repairResult = await executePreFlightRepairLoop(
     res.rawCode,
     provider,
-    dispatchPreflightToOffscreen
+    dispatchPreflightToOffscreen,
+    activeViewport
   );
 
   if (!repairResult.success) {
@@ -713,6 +771,7 @@ async function handleCloudEscalation(message: CloudEscalationRequestMessage): Pr
 async function handleInteractiveRepair(message: any) {
   const settings = await loadBYOKSettings();
   const { provider } = await resolveActiveProvider(settings);
+  const activeViewport = await resolveActiveViewport(message.viewport);
 
   const result = await executeInteractiveRepair(
     message.code,
@@ -720,7 +779,8 @@ async function handleInteractiveRepair(message: any) {
     message.stack,
     message.currentParams || {},
     provider,
-    dispatchPreflightToOffscreen
+    dispatchPreflightToOffscreen,
+    activeViewport
   );
 
   if (result.success) {

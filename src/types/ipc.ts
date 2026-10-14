@@ -119,6 +119,7 @@ export interface InteractiveRepairRequestMessage {
   errorMessage: string;
   stack?: string;
   currentParams: ParameterState;
+  viewport?: { width: number; height: number };
 }
 
 export interface InteractiveRepairResponseMessage {
@@ -126,6 +127,11 @@ export interface InteractiveRepairResponseMessage {
   status: 'ok' | 'error';
   repairedCode?: string;
   errorMessage?: string;
+}
+
+export interface SidepanelViewportChangedMessage {
+  type: 'SIDEPANEL_VIEWPORT_CHANGED';
+  viewport: { width: number; height: number };
 }
 
 // ==========================================
@@ -170,6 +176,7 @@ export interface EvolutionRequestMessage {
   userMessage?: string;
   chipId?: string;
   activeParams: ParameterState;
+  viewport?: { width: number; height: number };
 }
 
 export interface EvolutionResponseMessage {
@@ -192,6 +199,7 @@ export interface CloudEscalationRequestMessage {
   currentCode: string;
   selectedText: string;
   mathSnippet?: string;
+  viewport?: { width: number; height: number };
 }
 
 export interface CloudEscalationResponseMessage {

@@ -408,6 +408,7 @@ export async function executeAutonomousSimulationLoop(
 ): Promise<AutonomousLoopResult> {
   const {
     context,
+    viewport: optionsViewport,
     provider,
     testRunner,
     onProgress,
@@ -422,10 +423,15 @@ export async function executeAutonomousSimulationLoop(
     0.2
   );
 
+  const activeVp = optionsViewport || context.viewport;
   const viewport: SimulationViewport = {
-    width: context.viewport?.width ? Math.max(320, context.viewport.width) : 380,
-    height: context.viewport?.height ? Math.max(380, context.viewport.height) : 450
+    width: activeVp?.width ? Math.max(320, Math.round(activeVp.width)) : 380,
+    height: activeVp?.height ? Math.max(380, Math.round(activeVp.height)) : 450
   };
+
+  if (!context.viewport) {
+    context.viewport = viewport;
+  }
 
   const trajectory: AgentTrajectoryStep[] = [];
   const emitProgress = (rawStatus: string, role: 'architect' | 'coder' | 'sandbox', action: AgentTrajectoryStep['action']) => {

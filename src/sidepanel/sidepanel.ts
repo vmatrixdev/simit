@@ -1505,6 +1505,12 @@ function setViewState(view: 'empty' | 'loading' | 'simulation' | 'error') {
   stateLoading.style.display = view === 'loading' ? 'flex' : 'none';
   stateSimulation.style.display = view === 'simulation' ? 'flex' : 'none';
   stateError.style.display = view === 'error' ? 'flex' : 'none';
+
+  if (view === 'simulation') {
+    requestAnimationFrame(() => {
+      syncLiveSimulationViewport();
+    });
+  }
 }
 
 function setStatusPill(status: 'Ready' | 'Synthesizing' | 'Verifying' | 'Active' | 'Error' | 'Repairing') {
@@ -1749,7 +1755,8 @@ btnRepair?.addEventListener('click', () => {
       code: activeCode,
       errorMessage: lastRuntimeError.message,
       stack: lastRuntimeError.stack,
-      currentParams: currentParamsState
+      currentParams: currentParamsState,
+      viewport: getLiveSimulationViewport()
     }, (response) => {
       if (response && response.status === 'ok' && response.repairedCode) {
         initSimulationInIframe(response.repairedCode, currentParamsState);
@@ -2445,7 +2452,8 @@ function executeRefinement(userMessage: string, chipId?: string) {
       currentCode: activeCode,
       userMessage,
       chipId,
-      activeParams: currentParamsState
+      activeParams: currentParamsState,
+      viewport: getLiveSimulationViewport()
     };
 
     chrome.runtime.sendMessage(req, (res: EvolutionResponseMessage) => {
@@ -2554,7 +2562,8 @@ function handleCloudEscalateClick() {
       type: 'CLOUD_ESCALATION_REQUEST',
       sessionId: activeSessionId,
       currentCode: activeCode,
-      selectedText: simTitle.textContent || ''
+      selectedText: simTitle.textContent || '',
+      viewport: getLiveSimulationViewport()
     };
 
     chrome.runtime.sendMessage(req, (res: CloudEscalationResponseMessage) => {
@@ -2615,11 +2624,77 @@ refinementInput?.addEventListener('keydown', (e) => {
 btnCloudEscalate?.addEventListener('click', handleCloudEscalateClick);
 
 /**
+ * Measures the active available space for the simulation stage.
+ * If .iframe-container or #sandbox-iframe is mounted and has measured dimensions, returns them.
+ * Otherwise, calculates available geometry from window dimensions minus surrounding chrome.
+ */
+export function getLiveSimulationViewport(): { width: number; height: number } {
+  const container = document.querySelector('.iframe-container') as HTMLElement | null;
+  if (container && container.clientWidth > 0 && container.clientHeight > 0) {
+    return {
+      width: Math.round(container.clientWidth),
+      height: Math.round(container.clientHeight)
+    };
+  }
+
+  const iframe = document.getElementById('sandbox-iframe') as HTMLIFrameElement | null;
+  if (iframe && iframe.clientWidth > 0 && iframe.clientHeight > 0) {
+    return {
+      width: Math.round(iframe.clientWidth),
+      height: Math.round(iframe.clientHeight)
+    };
+  }
+
+  // Fallback to computing from window dimensions minus sidepanel header, card, padding and docks
+  // Padding: 12px left + 12px right = 24px
+  // Chrome overhead (header ~44px, card ~70px, dock ~52px, padding/margins ~24px) ~ 190px
+  const fallbackWidth = Math.max(320, (window.innerWidth || 400) - 24);
+  const fallbackHeight = Math.max(380, (window.innerHeight || 650) - 190);
+  return {
+    width: Math.round(fallbackWidth),
+    height: Math.round(fallbackHeight)
+  };
+}
+
+/**
+ * Synchronizes the active simulation viewport dimensions to chrome.storage.local
+ * and dispatches a notification to the background Service Worker.
+ */
+export function syncLiveSimulationViewport(): void {
+  const vp = getLiveSimulationViewport();
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    chrome.storage.local.set({ simit_sidepanel_viewport: vp }).catch(() => {});
+  }
+  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+    chrome.runtime.sendMessage({
+      type: 'SIDEPANEL_VIEWPORT_CHANGED',
+      viewport: vp
+    }).catch(() => {});
+  }
+}
+
+// Window & stage resize observers for reactive viewport synchronization
+window.addEventListener('resize', () => {
+  syncLiveSimulationViewport();
+});
+
+if (typeof ResizeObserver !== 'undefined') {
+  const ro = new ResizeObserver(() => {
+    syncLiveSimulationViewport();
+  });
+  const container = document.querySelector('.iframe-container');
+  if (container) ro.observe(container);
+  if (document.body) ro.observe(document.body);
+}
+
+/**
  * Initializes Side Panel State on Startup
  * Inspects if a background generation is actively running (e.g. triggered via context menu)
  * If not, mounts the interactive living welcome simulation.
  */
 function initSidepanelState() {
+  syncLiveSimulationViewport();
+
   if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
     chrome.runtime.sendMessage({ type: 'GET_ACTIVE_GENERATION_STATE' }, (response) => {
       if (response && response.status === 'ok' && response.payload && response.payload.active) {
@@ -2631,7 +2706,7 @@ function initSidepanelState() {
       }
 
       // If no active generation and no custom simulation loaded yet, mount welcome simulation
-      if (!activeCode) {
+      if (!activeCode && simTitle && simDesc) {
         simTitle.textContent = 'SimIt Copilot';
         simDesc.textContent = 'Zero-prompt interactive simulations. Highlight formulas, algorithms, or concepts on any web page and right-click "SimIt" — or prompt below.';
         initSimulationInIframe(WELCOME_SIMULATION_CODE);
@@ -2639,7 +2714,7 @@ function initSidepanelState() {
       }
     });
   } else {
-    if (!activeCode) {
+    if (!activeCode && simTitle && simDesc) {
       simTitle.textContent = 'SimIt Copilot';
       simDesc.textContent = 'Zero-prompt interactive simulations. Highlight formulas, algorithms, or concepts on any web page and right-click "SimIt" — or prompt below.';
       initSimulationInIframe(WELCOME_SIMULATION_CODE);

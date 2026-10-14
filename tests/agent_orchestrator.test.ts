@@ -488,4 +488,76 @@ delegate_to_coder({
       expect(result.snapshotUrl).toBe('data:image/webp;base64,snapshotFreeform');
     });
   });
+
+  describe('Dynamic Viewport Space Injection', () => {
+    it('propagates custom options.viewport to the Architect and Coder prompts instead of fallback 380x450', async () => {
+      const capturedPrompts: { systemPrompt?: string; userPrompt?: string }[] = [];
+
+      const mockRunner = async (req: PreFlightTestRequest): Promise<PreFlightTestResponse> => {
+        return {
+          type: 'PREFLIGHT_TEST_RESPONSE',
+          requestId: req.requestId,
+          status: 'ok',
+          validatedCode: req.rawCode,
+          parameters: [{ id: 'k', label: 'Rate', type: 'slider', min: 0, max: 10, default: 2 }]
+        };
+      };
+
+      const mockProvider: IModelProvider = {
+        type: 'google-gemini',
+        isLocal: false,
+        isAvailable: async () => true,
+        generateSimulation: vi.fn().mockImplementation(async (payload) => {
+          capturedPrompts.push(payload);
+          if (capturedPrompts.length === 1) {
+            // Architect
+            return {
+              rawCode: `delegate_to_coder({
+                "title": "Expanded Stage Model",
+                "description": "Adaptive wide-screen simulation",
+                "visualPlan": "Wide responsive canvas",
+                "mathFormulation": "dx/dt = -k x",
+                "parametersSpec": [{ "id": "k", "label": "Rate", "type": "slider", "min": 0, "max": 10, "default": 2 }]
+              })`
+            };
+          } else if (capturedPrompts.length === 2) {
+            // Coder
+            return {
+              rawCode: `<simulation_code>
+                export default {
+                  title: "Expanded Stage Model",
+                  description: "Adaptive wide-screen simulation",
+                  parameters: [{ id: "k", label: "Rate", type: "slider", min: 0, max: 10, default: 2 }],
+                  init(c, p) {},
+                  update(p) {}
+                };
+              </simulation_code>`
+            };
+          } else {
+            // Review
+            return { rawCode: JSON.stringify({ approved: true }) };
+          }
+        })
+      };
+
+      const customViewport = { width: 620, height: 840 };
+      const contextWithoutViewport = { ...mockContext, viewport: undefined };
+
+      const result = await executeAutonomousSimulationLoop({
+        context: contextWithoutViewport,
+        viewport: customViewport,
+        provider: mockProvider,
+        testRunner: mockRunner
+      });
+
+      expect(result.success).toBe(true);
+      // Architect prompt should have width = 620px, height = 840px
+      expect(capturedPrompts[0].systemPrompt).toContain('Container width: 620px, height: 840px');
+      // Coder prompt should have VIEWPORT: width = 620px, height = 840px
+      expect(capturedPrompts[1].systemPrompt).toContain('### VIEWPORT: width = 620px, height = 840px.');
+      // Context should also have been updated with the resolved viewport
+      expect(contextWithoutViewport.viewport).toEqual(customViewport);
+    });
+  });
 });
+

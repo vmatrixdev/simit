@@ -325,5 +325,40 @@ export default {
     expect(container.innerHTML).toContain('cy-root');
     expect(container.innerHTML).toContain('Interactive Concept DAG');
   });
+
+  it('resolves active viewport from context, storage, or minimum fallback', async () => {
+    const { resolveActiveViewport } = await import('../src/background/service-worker');
+
+    // 1. Explicit context measurement takes precedence
+    const explicit = await resolveActiveViewport({ width: 500, height: 700 });
+    expect(explicit).toEqual({ width: 500, height: 700 });
+
+    // 2. Minimum bounds enforcement
+    const clamped = await resolveActiveViewport({ width: 100, height: 200 });
+    expect(clamped).toEqual({ width: 320, height: 380 });
+
+    // 3. Fallback when undefined
+    const fallback = await resolveActiveViewport(undefined);
+    expect(fallback.width).toBeGreaterThanOrEqual(320);
+    expect(fallback.height).toBeGreaterThanOrEqual(380);
+  });
+
+  it('measures live simulation viewport from DOM container or window fallback', async () => {
+    const { getLiveSimulationViewport } = await import('../src/sidepanel/sidepanel');
+
+    const vpFallback = getLiveSimulationViewport();
+    expect(vpFallback.width).toBeGreaterThanOrEqual(320);
+    expect(vpFallback.height).toBeGreaterThanOrEqual(380);
+
+    // Mock an active iframe-container
+    const container = document.createElement('div');
+    container.className = 'iframe-container';
+    Object.defineProperty(container, 'clientWidth', { value: 650, configurable: true });
+    Object.defineProperty(container, 'clientHeight', { value: 850, configurable: true });
+    document.body.appendChild(container);
+
+    const measured = getLiveSimulationViewport();
+    expect(measured).toEqual({ width: 650, height: 850 });
+  });
 });
 

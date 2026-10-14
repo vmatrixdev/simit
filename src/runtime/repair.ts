@@ -7,7 +7,7 @@ import { IModelProvider } from '../types/models';
 import { PreFlightTestRequest, PreFlightTestResponse } from '../types/ipc';
 import { ParameterDefinition, ParameterState } from '../types/simulation';
 import { runPreFlightSmokeTest } from './preflight';
-import { buildPreFlightRepairPrompt, buildInteractiveRepairPrompt } from '../providers/prompt-builder';
+import { buildPreFlightRepairPrompt, buildInteractiveRepairPrompt, SimulationViewport } from '../providers/prompt-builder';
 import { sanitizeCodeFences } from './preflight';
 
 export interface RepairCycleResult {
@@ -25,7 +25,8 @@ export interface RepairCycleResult {
 export async function executePreFlightRepairLoop(
   rawGeneratedCode: string,
   modelProvider: IModelProvider,
-  testRunner: (req: PreFlightTestRequest) => Promise<PreFlightTestResponse> = runPreFlightSmokeTest
+  testRunner: (req: PreFlightTestRequest) => Promise<PreFlightTestResponse> = runPreFlightSmokeTest,
+  viewport?: SimulationViewport
 ): Promise<RepairCycleResult> {
   let currentCode = sanitizeCodeFences(rawGeneratedCode);
   let repairsNeeded = 0;
@@ -65,7 +66,8 @@ export async function executePreFlightRepairLoop(
     const repairPromptPayload = buildPreFlightRepairPrompt(
       currentCode,
       firstTest.errorMessage,
-      firstTest.errorStack
+      firstTest.errorStack,
+      viewport
     );
 
     const modelResponse = await modelProvider.generateSimulation(repairPromptPayload);
@@ -127,13 +129,15 @@ export async function executeInteractiveRepair(
   errorStack: string | undefined,
   currentParams: ParameterState,
   modelProvider: IModelProvider,
-  testRunner: (req: PreFlightTestRequest) => Promise<PreFlightTestResponse> = runPreFlightSmokeTest
+  testRunner: (req: PreFlightTestRequest) => Promise<PreFlightTestResponse> = runPreFlightSmokeTest,
+  viewport?: SimulationViewport
 ): Promise<RepairCycleResult> {
   const repairPromptPayload = buildInteractiveRepairPrompt(
     failedCode,
     errorMessage,
     currentParams,
-    errorStack
+    errorStack,
+    viewport
   );
 
   const modelResponse = await modelProvider.generateSimulation(repairPromptPayload);
