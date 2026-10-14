@@ -193,25 +193,3 @@ export interface EvolutionResponseMessage {
   errorMessage?: string;
 }
 
-export interface CloudEscalationRequestMessage {
-  type: 'CLOUD_ESCALATION_REQUEST';
-  sessionId: string;
-  currentCode: string;
-  selectedText: string;
-  mathSnippet?: string;
-  viewport?: { width: number; height: number };
-}
-
-export interface CloudEscalationResponseMessage {
-  type: 'CLOUD_ESCALATION_RESPONSE';
-  status: 'ok' | 'error';
-  evolvedCode?: string;
-  parameters?: ParameterDefinition[];
-  provider?: string;
-  modelName?: string;
-  versionId?: string;
-  versionIndex?: number;
-  versionLabel?: string;
-  errorMessage?: string;
-}
-

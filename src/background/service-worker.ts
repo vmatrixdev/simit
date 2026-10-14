@@ -23,7 +23,7 @@ import { extractOrGenerateChips, triageRefinementIntent } from '../runtime/evolu
 import { saveSession, saveVersion, getSession, getVersionsForSession, rollbackToVersion } from '../runtime/session-db';
 import { compactContext, formatCompactedUserPrompt } from '../runtime/context-compactor';
 import { SessionRecord, SimulationVersion } from '../types/session';
-import { EvolutionRequestMessage, EvolutionResponseMessage, CloudEscalationRequestMessage, CloudEscalationResponseMessage } from '../types/ipc';
+import { EvolutionRequestMessage, EvolutionResponseMessage } from '../types/ipc';
 import { executeAutonomousSimulationLoop } from '../runtime/agent-orchestrator';
 
 const CONTEXT_MENU_ID = 'simit-selection';
@@ -452,13 +452,6 @@ if (typeof chrome !== 'undefined' && chrome.runtime?.onMessage) {
     return true;
   }
 
-  if (message && message.type === 'CLOUD_ESCALATION_REQUEST') {
-    handleCloudEscalation(message)
-      .then((res) => sendResponse(res))
-      .catch((err) => sendResponse({ status: 'error', errorMessage: err.message || String(err) }));
-    return true;
-  }
-
   if (message && message.type === 'GET_VERSIONS_REQUEST') {
     getVersionsForSession(message.sessionId)
       .then((versions) => sendResponse({ status: 'ok', versions }))
@@ -673,95 +666,6 @@ async function handleEvolutionRequest(message: EvolutionRequestMessage): Promise
     evolvedCode: repairResult.code,
     parameters: repairResult.parameters,
     suggestedChips: updatedChips,
-    versionId: newVersionId,
-    versionIndex: nextIndex,
-    versionLabel: `v${nextIndex}`
-  };
-}
-
-async function handleCloudEscalation(message: CloudEscalationRequestMessage): Promise<CloudEscalationResponseMessage> {
-  const settings = await loadBYOKSettings();
-  const candidateProvider = settings.activeProviderType !== 'chrome-prompt-api'
-    ? settings.activeProviderType
-    : (settings.providers.anthropic.apiKey ? 'anthropic' : (settings.providers['google-gemini'].apiKey ? 'google-gemini' : 'openai-compatible'));
-
-  const { provider } = await resolveActiveProvider({
-    ...settings,
-    activeProviderType: candidateProvider
-  });
-
-  const isAvail = await provider.isAvailable();
-  if (!isAvail) {
-    return {
-      type: 'CLOUD_ESCALATION_RESPONSE',
-      status: 'error',
-      errorMessage: `Cloud provider (${candidateProvider}) is not configured with a valid API key. Please check Settings.`
-    };
-  }
-
-  const activeViewport = await resolveActiveViewport(message.viewport);
-  const prompt = `Advance this simulation into a high-fidelity, comprehensive mathematical model.\nSelected Excerpt:\n"""\n${message.selectedText}\n"""\nFormula: ${message.mathSnippet || 'N/A'}\nBase Code:\n<simulation_code>\n${message.currentCode}\n</simulation_code>\nSynthesize an advanced version with smooth dynamics, explicit scales, and full parameter explorations.`;
-  const systemPrompt = buildSimulationSystemPrompt(activeViewport);
-
-  const res = await provider.generateSimulation({
-    systemPrompt,
-    userPrompt: prompt,
-    temperature: 0.2
-  });
-
-  const repairResult = await executePreFlightRepairLoop(
-    res.rawCode,
-    provider,
-    dispatchPreflightToOffscreen,
-    activeViewport
-  );
-
-  if (!repairResult.success) {
-    return {
-      type: 'CLOUD_ESCALATION_RESPONSE',
-      status: 'error',
-      errorMessage: repairResult.finalError || 'Cloud pre-flight failed.'
-    };
-  }
-
-  let nextIndex = 2;
-  let newVersionId = `ver_v2_${Date.now()}`;
-  try {
-    const session = await getSession(message.sessionId);
-    if (session) {
-      const versions = await getVersionsForSession(message.sessionId);
-      nextIndex = versions.length + 1;
-      newVersionId = `ver_v${nextIndex}_${Date.now()}`;
-      const newVersion: SimulationVersion = {
-        id: newVersionId,
-        sessionId: message.sessionId,
-        versionIndex: nextIndex,
-        versionLabel: `v${nextIndex}`,
-        code: repairResult.code,
-        title: session.title,
-        description: `Cloud escalation via ${candidateProvider}`,
-        parameters: repairResult.parameters,
-        parameterState: {},
-        trigger: 'cloud_escalation',
-        timestamp: Date.now()
-      };
-      await saveVersion(newVersion);
-      session.activeVersionId = newVersionId;
-      session.versionsCount = nextIndex;
-      session.updatedAt = Date.now();
-      await saveSession(session);
-    }
-  } catch (err) {
-    console.warn('[SimIt SW] Cloud escalation session save error:', err);
-  }
-
-  return {
-    type: 'CLOUD_ESCALATION_RESPONSE',
-    status: 'ok',
-    evolvedCode: repairResult.code,
-    parameters: repairResult.parameters,
-    provider: candidateProvider,
-    modelName: settings.providers[candidateProvider]?.modelName || candidateProvider,
     versionId: newVersionId,
     versionIndex: nextIndex,
     versionLabel: `v${nextIndex}`

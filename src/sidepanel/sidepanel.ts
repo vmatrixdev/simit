@@ -9,9 +9,7 @@ import {
   SandboxInitSimulationMessage,
   SandboxUpdateParametersMessage,
   EvolutionRequestMessage,
-  EvolutionResponseMessage,
-  CloudEscalationRequestMessage,
-  CloudEscalationResponseMessage
+  EvolutionResponseMessage
 } from '../types/ipc';
 import { ParameterDefinition, ParameterState } from '../types/simulation';
 import { AtifTrajectory } from '../types/atif';
@@ -44,8 +42,6 @@ const btnResetParams = document.getElementById('btn-reset-params') as HTMLButton
 
 // Phase 3 UI Elements
 const versionScrubber = document.getElementById('version-scrubber') as HTMLElement;
-const btnCloudEscalate = document.getElementById('btn-cloud-escalate') as HTMLButtonElement;
-const cloudEscalateText = document.getElementById('cloud-escalate-text') as HTMLElement;
 
 const evolutionChipsDock = document.getElementById('evolution-chips-dock') as HTMLElement;
 const evolutionChipsList = document.getElementById('evolution-chips-list') as HTMLElement;
@@ -1894,10 +1890,8 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
           renderVersionScrubber();
         }
 
-        // Phase 3: Cloud Escalation Badge
         if (message.routingDecision) {
           activeRoutingDecision = message.routingDecision;
-          renderCloudEscalation(message.routingDecision);
         }
 
         const simVerifyingBanner = document.getElementById('sim-verifying-banner');
@@ -2532,82 +2526,7 @@ function executeRefinement(userMessage: string, chipId?: string) {
   }
 }
 
-/**
- * Configures the 1-click cloud escalation button
- */
-function renderCloudEscalation(decision: RoutingDecision) {
-  if (!btnCloudEscalate) return;
-
-  if (decision.canEscalateToCloud) {
-    btnCloudEscalate.style.display = 'inline-flex';
-    if (cloudEscalateText) {
-      cloudEscalateText.textContent = decision.escalationBadgeText || '⚡ Escalate to Cloud';
-    }
-  } else {
-    btnCloudEscalate.style.display = 'none';
-  }
-}
-
-/**
- * Handles 1-click cloud escalation click
- */
-function handleCloudEscalateClick() {
-  if (!activeCode) return;
-
-  setMorphingProgress(2, 'Escalating to Frontier Cloud Model...', 'Formulating context for deep reasoning tier', 'code');
-  setStatusPill('Synthesizing');
-
-  if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-    const req: CloudEscalationRequestMessage = {
-      type: 'CLOUD_ESCALATION_REQUEST',
-      sessionId: activeSessionId,
-      currentCode: activeCode,
-      selectedText: simTitle.textContent || '',
-      viewport: getLiveSimulationViewport()
-    };
-
-    chrome.runtime.sendMessage(req, (res: CloudEscalationResponseMessage) => {
-      if (res && res.status === 'ok' && res.evolvedCode) {
-        activeCode = res.evolvedCode;
-        if (res.parameters) {
-          activeParameters = res.parameters;
-        }
-
-        initSimulationInIframe(activeCode, currentParamsState);
-        renderControlsDock(activeParameters, currentParamsState);
-
-        activeVersionIndex = res.versionIndex || (activeVersionIndex + 1);
-        const newVerId = res.versionId || `ver_v${activeVersionIndex}_${Date.now()}`;
-        currentVersions.push({
-          id: newVerId,
-          versionIndex: activeVersionIndex,
-          versionLabel: res.versionLabel || `v${activeVersionIndex}`,
-          code: activeCode,
-          parameters: [...activeParameters],
-          parameterState: { ...currentParamsState }
-        });
-        renderVersionScrubber();
-
-        const simCodePreview = document.getElementById('sim-code-preview');
-        if (simCodePreview) simCodePreview.textContent = activeCode;
-
-        setStatusPill('Active');
-        setMorphingProgress(
-          4,
-          `🚀 Frontier model generated v${activeVersionIndex}!`,
-          `${res.modelName || res.provider} generation complete`,
-          'ready',
-          5000
-        );
-      } else {
-        setStatusPill('Active');
-        setMorphingProgress(3, 'Cloud Escalation Failed', res?.errorMessage || 'Check API key in Settings', 'error');
-      }
-    });
-  }
-}
-
-// Event Listeners for Refinement Chat & Cloud Escalation
+// Event Listeners for Refinement Chat
 btnRefinementSend?.addEventListener('click', () => {
   if (refinementInput) {
     executeRefinement(refinementInput.value);
@@ -2620,8 +2539,6 @@ refinementInput?.addEventListener('keydown', (e) => {
     executeRefinement(refinementInput.value);
   }
 });
-
-btnCloudEscalate?.addEventListener('click', handleCloudEscalateClick);
 
 /**
  * Measures the active available space for the simulation stage.

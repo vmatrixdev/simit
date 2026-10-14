@@ -644,28 +644,6 @@ select {
   box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
 }
 
-/* Cloud Escalation Button */
-.btn-escalate {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(234, 88, 12, 0.2));
-  border: 1px solid rgba(245, 158, 11, 0.4);
-  color: #fbbf24;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 12px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  transition: all 0.2s ease;
-}
-
-.btn-escalate:hover {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(234, 88, 12, 0.35));
-  border-color: #f59e0b;
-  transform: translateY(-1px);
-}
-
 /* Quick Evolution Chips (hidden to maximize simulation space) */
 .chips-dock,
 #evolution-chips-dock {
