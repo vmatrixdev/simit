@@ -114,12 +114,15 @@ SimIt includes helper scripts and commands for productive local development:
 | `npm run setup` | Automated environment validation, dependency install, build, and test run (`scripts/setup.sh`). |
 | `npm run dev` | Continuous development watch mode with automatic vendor sync and Vite watch (`scripts/dev.sh`). |
 | `npm run build` | Full production build of extension into `dist/`. |
+| `npm run package` | Build and package extension into upload-ready `simit-extension.zip` for Chrome Web Store. |
 | `npm test` | Run Vitest unit & integration test suites. |
 | `npm run test:watch` | Run Vitest in interactive watch mode. |
 | `npm run test:e2e` | Run Playwright autonomous end-to-end browser test harness with real extension loading. |
 | `npm run typecheck` | Run TypeScript type checking without emitting files. |
 
 > **Development Tip:** When developing with `npm run dev`, after modifying files, simply click the **refresh icon (↺)** on the SimIt card in `chrome://extensions` to reload the updated bundle into Chrome.
+>
+> **Publishing Tip:** To publish or submit SimIt to the Chrome Web Store, follow the detailed instructions in [docs/product/chrome_web_store_publishing.md](docs/product/chrome_web_store_publishing.md).
 
 ---
 
