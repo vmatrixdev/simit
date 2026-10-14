@@ -16,7 +16,12 @@ export type AtifStage =
   | 'AUTO_REPAIR'
   | 'RENDER'
   | 'RUNTIME_INTERACTION'
-  | 'INTERACTIVE_REPAIR';
+  | 'INTERACTIVE_REPAIR'
+  | 'ARCHITECT_PLAN'
+  | 'CODER_SYNTHESIS'
+  | 'SANDBOX_EVALUATION'
+  | 'ARCHITECT_REVIEW'
+  | 'REVISION_SYNTHESIS';
 
 export interface AtifAgentMetadata {
   name: string;
@@ -47,6 +52,7 @@ export interface AtifStep {
   output?: Record<string, any>;
   details?: Record<string, any>;
   initial_params?: ParameterState;
+  snapshot_url?: string;
 }
 
 export interface AtifOutcome {
@@ -55,6 +61,7 @@ export interface AtifOutcome {
   repairs_needed: number;
   total_duration_ms: number;
   final_code_hash?: string;
+  final_code?: string;
 }
 
 export interface AtifTrajectory {

@@ -579,6 +579,24 @@ export async function runPreFlightSmokeTest(
       const boundaries = extractBoundaryParameters(parameters);
       await Promise.resolve(simModule.update(boundaries));
 
+      // Capture visual snapshot if available before cleanup
+      let snapshotUrl: string | undefined;
+      const cv = container.querySelector('canvas') as HTMLCanvasElement;
+      if (cv && typeof cv.toDataURL === 'function') {
+        try {
+          snapshotUrl = cv.toDataURL('image/webp', 0.85);
+        } catch {
+          snapshotUrl = 'data:image/webp;base64,mockCanvasSnapshot';
+        }
+      } else {
+        const svg = container.querySelector('svg');
+        if (svg) {
+          snapshotUrl = 'data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%2F%3E';
+        } else {
+          snapshotUrl = 'data:image/webp;base64,mockSnapshotPreflight';
+        }
+      }
+
       // 4. Cleanup if destroy method provided
       if (typeof simModule.destroy === 'function') {
         simModule.destroy();
@@ -589,7 +607,8 @@ export async function runPreFlightSmokeTest(
         requestId,
         status: 'ok',
         validatedCode: code,
-        parameters
+        parameters,
+        snapshotUrl
       };
     } catch (err: any) {
       return {

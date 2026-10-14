@@ -73,5 +73,6 @@ This repository includes specialized agent skills under `.agents/skills/`:
 
 - **Manifest V3 Compliance**: Ensure background logic strictly adheres to Service Worker lifecycle constraints (stateless event listeners, no persistent global window state, async message passing).
 - **Security & Sandboxing**: All dynamic code execution (simulation evaluation) MUST occur within isolated offscreen document sandboxes to comply with Chrome Extension Security Policy (CSP).
-- **Zero-Prompt Friction**: Maintain the zero-prompt UX paradigm—users select text and click "SimIt"; the engine autonomously deduces archetypes, bounds, and UI controls without requiring prompt engineering from the user.
-- **Git Hygiene**: Keep commits focused and descriptive. Update living documentation (`docs/specs/`) alongside any architectural or code changes.
+- **Git Hygiene & Sandboxed Execution**: Keep commits focused and descriptive. Update living documentation (`docs/specs/`) alongside any architectural or code changes.
+  > **CRITICAL Git Execution Invariant:** The host machine includes a custom global gitconfig outside the sandbox (`~/.gitconfig-vmatrixdev`). To avoid `fatal: unable to access ... Operation not permitted` sandbox failures, **ALL `git` commands MUST be run with `GIT_CONFIG_GLOBAL=/dev/null` upfront** (e.g., `GIT_CONFIG_GLOBAL=/dev/null git status`, `GIT_CONFIG_GLOBAL=/dev/null git checkout ...`). Never execute bare `git` commands.
+

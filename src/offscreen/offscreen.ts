@@ -81,7 +81,8 @@ function executeSandboxedSmokeTest(testMsg: PreFlightTestRequest): Promise<PreFl
           requestId: testMsg.requestId,
           status: 'ok',
           validatedCode: testMsg.rawCode,
-          parameters: data.parameters || []
+          parameters: data.parameters || [],
+          snapshotUrl: data.snapshotUrl
         });
       } else if (data.type === 'SANDBOX_RUNTIME_ERROR') {
         cleanup();
@@ -111,7 +112,8 @@ function executeSandboxedSmokeTest(testMsg: PreFlightTestRequest): Promise<PreFl
     // Dispatch code to sandboxed iframe where 'unsafe-eval' is permitted
     frame.contentWindow.postMessage({
       type: 'SANDBOX_INIT_SIMULATION',
-      code: testMsg.rawCode
+      code: testMsg.rawCode,
+      captureSnapshot: testMsg.captureSnapshot ?? true
     }, '*');
   });
 }

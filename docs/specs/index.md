@@ -19,12 +19,14 @@ This document serves as the single source of truth and registry for all living t
 | [Conversational Evolution & Refinement](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/conversational_evolution.md) | Conversational Evolution & Triage | Approved | Dual-track evolution (pre-computed chips + refinement chat), zero-latency parametric triage (0ms LLM overhead), and structured code evolution. |
 | [Session Memory & Context Rolling](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/session_memory.md) | Client Storage & State Stack | Approved | $0 infrastructure IndexedDB session persistence (`simit_db`), immutable version stack (`v1 -> v2 -> v3`), 1-click state rollback, and 4-tier context rolling compactor (< 2,500 token ceiling). |
 | [Hybrid Multi-Model Routing](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/model_routing.md) | Model Orchestration & Tiers | Approved | Two-tier model topology (Tier 1 on-device Gemini Nano vs Tier 2 BYOK frontier cloud), algorithmic complexity assessment, and 1-click cloud escalation. |
+| [Autonomous Multi-Agent Architecture](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/autonomous_agent_architecture.md) | Multi-Agent Orchestration & Visual Review | Approved | Two-tier Epistemic Architect & Coder sub-agent, unconstrained deliberation, micro-progress reporting (3-5 words, zero prefixes), sandbox visual snapshot tool (`canvas.toDataURL()`), and multimodal visual review loop. |
 
 ---
 
 ## 2. Shared Domain Models
 
 Domain types are centrally defined and strongly typed in TypeScript under [`src/types/`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/):
+- [`src/types/agent.ts`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/agent.ts): Multi-agent blueprints, micro-progress payloads, visual snapshots, and review feedback.
 - [`src/types/harvester.ts`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/harvester.ts): Context harvesting, math annotations, DOM hierarchy, and viewport dimensions.
 - [`src/types/models.ts`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/models.ts): Provider abstraction, Chrome Prompt API capabilities, BYOK settings schema, and thinking modes.
 - [`src/types/ipc.ts`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/ipc.ts): IPC message envelopes between background, offscreen, and sandbox.

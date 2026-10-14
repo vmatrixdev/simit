@@ -582,11 +582,32 @@ window.addEventListener('message', (event) => {
             }
           }
         });
+        let snapshotUrl: string | undefined;
+        try {
+          const canvas = simRoot.querySelector('canvas') as HTMLCanvasElement;
+          if (canvas && typeof canvas.toDataURL === 'function' && canvas.width > 0 && canvas.height > 0) {
+            try {
+              snapshotUrl = canvas.toDataURL('image/webp', 0.85);
+            } catch {
+              snapshotUrl = canvas.toDataURL('image/png');
+            }
+          } else {
+            const svg = simRoot.querySelector('svg');
+            if (svg) {
+              const xml = new XMLSerializer().serializeToString(svg);
+              snapshotUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(xml)}`;
+            }
+          }
+        } catch (snapErr) {
+          console.warn('[Sandbox] Snapshot capture notice:', snapErr);
+        }
+
         const readyMsg: SandboxToHostMessage = {
           type: 'SANDBOX_SIMULATION_READY',
           title: activeModule.title || 'Simulation',
           description: activeModule.description || '',
-          parameters: paramsDef
+          parameters: paramsDef,
+          snapshotUrl
         };
         window.parent?.postMessage(readyMsg, '*');
       } catch (err: any) {

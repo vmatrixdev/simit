@@ -33,6 +33,7 @@ export interface PreFlightTestRequest {
   requestId: string;
   rawCode: string;
   timeoutMs: number;
+  captureSnapshot?: boolean;
 }
 
 export interface PreFlightTestSuccessResponse {
@@ -41,6 +42,7 @@ export interface PreFlightTestSuccessResponse {
   status: 'ok';
   validatedCode: string;
   parameters: ParameterDefinition[];
+  snapshotUrl?: string;
 }
 
 export interface PreFlightTestErrorResponse {
@@ -49,6 +51,7 @@ export interface PreFlightTestErrorResponse {
   status: 'error';
   errorMessage: string;
   errorStack?: string;
+  snapshotUrl?: string;
 }
 
 export type PreFlightTestResponse = PreFlightTestSuccessResponse | PreFlightTestErrorResponse;
@@ -61,6 +64,7 @@ export interface SandboxInitSimulationMessage {
   type: 'SANDBOX_INIT_SIMULATION';
   code: string;
   initialParams?: ParameterState;
+  captureSnapshot?: boolean;
 }
 
 export interface SandboxUpdateParametersMessage {
@@ -82,6 +86,7 @@ export interface SandboxSimulationReadyMessage {
   title: string;
   description: string;
   parameters: ParameterDefinition[];
+  snapshotUrl?: string;
 }
 
 export interface SandboxRuntimeErrorMessage {

@@ -29,4 +29,5 @@ artifacts/
 *.log
 .chrome*
 .browser-profile*
+tests/fixtures/downloads/
 

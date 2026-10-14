@@ -24,6 +24,7 @@ import { saveSession, saveVersion, getSession, getVersionsForSession, rollbackTo
 import { compactContext, formatCompactedUserPrompt } from '../runtime/context-compactor';
 import { SessionRecord, SimulationVersion } from '../types/session';
 import { EvolutionRequestMessage, EvolutionResponseMessage, CloudEscalationRequestMessage, CloudEscalationResponseMessage } from '../types/ipc';
+import { executeAutonomousSimulationLoop } from '../runtime/agent-orchestrator';
 
 const CONTEXT_MENU_ID = 'simit-selection';
 
@@ -243,7 +244,7 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
 
   broadcastToSidePanel({
     type: 'SIMULATION_LOADING',
-    title: 'Generating Simulation Code...',
+    title: 'Formulating Visual Landscape...',
     description: `Synthesizing ${classification.archetype.replace(/_/g, ' ')} via ${provider.type}.`
   });
 
@@ -252,103 +253,37 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
     height: harvestedContext.viewport?.height ? Math.max(380, harvestedContext.viewport.height) : 450
   };
 
-  const systemPrompt = buildSimulationSystemPrompt(viewport);
-  const userPrompt = buildUserPromptFromContext(harvestedContext, viewport);
-
-  atifLogger.recordStep('PROMPT_COMPOSE', {
-    system_prompt_length: systemPrompt.length,
-    user_prompt_length: userPrompt.length,
-    viewport
+  const loopResult = await executeAutonomousSimulationLoop({
+    context: harvestedContext,
+    viewport,
+    provider,
+    testRunner: dispatchPreflightToOffscreen,
+    atifLogger,
+    onProgress: (status, role) => {
+      const step = role === 'sandbox' ? 3 : role === 'coder' ? 2 : 1;
+      const stageName = role === 'sandbox' ? 'test' : role === 'coder' ? 'code' : 'think';
+      updateGenerationProgress(step, status, `Two-Tier Agent Loop • ${status}`, stageName);
+    },
+    maxIterations: 3
   });
 
-  let rawGeneratedCode = '';
-  try {
-    const startTime = Date.now();
-    const generationRes = await provider.generateSimulation({
-      systemPrompt,
-      userPrompt,
-      temperature: settings.providers[provider.type]?.temperature || 0.2
-    });
-    rawGeneratedCode = generationRes.rawCode;
-    const cleanInitialCode = sanitizeCodeFences(rawGeneratedCode);
-
-    atifLogger.recordStep(
-      'MODEL_INFERENCE',
-      { prompt_length: userPrompt.length },
-      { code_length: rawGeneratedCode.length, thinking_trace: generationRes.thinkingTrace },
-      Date.now() - startTime
-    );
-
-    // Optimistically display the generated simulation to the user while offscreen verification is pending
-    broadcastToSidePanel({
-      type: 'SIMULATION_READY',
-      code: cleanInitialCode,
-      isOptimistic: true
-    });
-  } catch (err: any) {
-    console.error('[SimIt SW] Model generation error:', err);
-    const failedTrajectory = atifLogger.complete(false);
-    updateGenerationProgress(2, 'Generation Error', err.message || String(err), 'error');
-    broadcastToSidePanel({
-      type: 'SIMULATION_ERROR',
-      errorMessage: `Model generation failed: ${err.message || String(err)}`,
-      atifTrajectory: failedTrajectory,
-      rawCode: rawGeneratedCode
-    });
-    return;
-  }
-
-  // Execute pre-flight verification with 1-shot self-repair loop
-  updateGenerationProgress(
-    3,
-    'Sandbox Pre-Flight Verification...',
-    'Testing execution and CSP in isolated offscreen sandbox',
-    'test'
-  );
-
-  const repairResult = await executePreFlightRepairLoop(
-    rawGeneratedCode,
-    provider,
-    dispatchPreflightToOffscreen
-  );
-
-  if (repairResult.repairsNeeded > 0) {
-    atifLogger.recordStep(
-      'AUTO_REPAIR',
-      { initial_error: repairResult.initialError },
-      { code_length: repairResult.code.length, repairs_needed: repairResult.repairsNeeded }
-    );
-  }
-
-  atifLogger.recordStep(
-    'PREFLIGHT_VERIFY',
-    { repairs_needed: repairResult.repairsNeeded },
-    { success: repairResult.success, error: repairResult.finalError },
-    undefined,
-    undefined,
-    repairResult.success ? 'PASS' : 'FAIL'
-  );
-
-  if (repairResult.success) {
+  if (loopResult.success) {
     updateGenerationProgress(
       4,
-      'Mounting Interactive Runtime...',
-      'Simulation ready • Full interactive controls mounted',
-      'load'
+      'Simulation Ready!',
+      'Interactive runtime active • Full controls mounted',
+      'ready'
     );
-    atifLogger.recordStep('RENDER', {}, { parameter_count: repairResult.parameters.length }, undefined, undefined, 'MOUNTED');
-    const trajectory = atifLogger.complete(true, repairResult.code);
 
-    // Phase 3: Generate evolution chips and save session/v1 to IndexedDB
     const sessionId = `sess_${Date.now()}`;
     const initialParams: Record<string, any> = {};
-    for (const p of repairResult.parameters) {
+    for (const p of loopResult.parameters) {
       initialParams[p.id] = (p as any).default ?? 0;
     }
 
     const evolutionChips = extractOrGenerateChips(
-      repairResult.code,
-      repairResult.parameters,
+      loopResult.code,
+      loopResult.parameters,
       classification.archetype
     );
 
@@ -356,7 +291,7 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
       id: sessionId,
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      title: harvestedContext.selection.documentTitle || 'Simulation',
+      title: loopResult.title || harvestedContext.selection.documentTitle || 'Simulation',
       url: harvestedContext.selection.sourceUrl || '',
       selectedText: harvestedContext.selection.selectedText,
       mathSnippet: harvestedContext.mathSnippets?.[0]?.latex,
@@ -371,10 +306,10 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
       sessionId,
       versionIndex: 1,
       versionLabel: 'v1',
-      code: repairResult.code,
+      code: loopResult.code,
       title: sessionRecord.title,
-      description: `Initial synthesis from ${classification.archetype}`,
-      parameters: repairResult.parameters,
+      description: loopResult.description || `Initial synthesis from ${classification.archetype}`,
+      parameters: loopResult.parameters,
       parameterState: initialParams,
       trigger: 'initial_synthesis',
       timestamp: Date.now()
@@ -389,34 +324,27 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
 
     broadcastToSidePanel({
       type: 'SIMULATION_READY',
-      code: repairResult.code,
-      parameters: repairResult.parameters,
-      atifTrajectory: trajectory,
+      code: loopResult.code,
+      parameters: loopResult.parameters,
+      atifTrajectory: loopResult.atifTrajectory,
       sessionId,
       versionIndex: 1,
       versionLabel: 'v1',
       evolutionChips,
       routingDecision
     });
-    updateGenerationProgress(
-      4,
-      'Simulation Ready!',
-      'v1 active • Ready for exploration or refinement',
-      'ready'
-    );
   } else {
-    const failedTrajectory = atifLogger.complete(false, repairResult.code);
     updateGenerationProgress(
       3,
-      'Pre-Flight Error',
-      repairResult.finalError || 'Verification failed',
+      'Generation Error',
+      loopResult.error || 'Verification failed',
       'error'
     );
     broadcastToSidePanel({
       type: 'SIMULATION_ERROR',
-      errorMessage: `Pre-flight verification failed after repair: ${repairResult.finalError || 'Unknown runtime error'}`,
-      atifTrajectory: failedTrajectory,
-      rawCode: repairResult.code
+      errorMessage: `Multi-agent verification failed: ${loopResult.error || 'Unknown runtime error'}`,
+      atifTrajectory: loopResult.atifTrajectory,
+      rawCode: loopResult.code
     });
   }
 }

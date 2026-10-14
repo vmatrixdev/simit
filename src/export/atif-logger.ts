@@ -74,9 +74,11 @@ export class AtifTrajectoryLogger {
     status?: string
   ): AtifStep {
     this.stepCounter += 1;
-    if (stage === 'AUTO_REPAIR' || stage === 'INTERACTIVE_REPAIR') {
+    if (stage === 'AUTO_REPAIR' || stage === 'INTERACTIVE_REPAIR' || stage === 'REVISION_SYNTHESIS') {
       this.repairsCount += 1;
     }
+
+    const snapshotUrl = output?.snapshot_url || details?.snapshot_url;
 
     const step: AtifStep = {
       step_index: this.stepCounter,
@@ -86,7 +88,8 @@ export class AtifTrajectoryLogger {
       status,
       input,
       output,
-      details
+      details,
+      snapshot_url: snapshotUrl
     };
 
     this.trajectory.trajectory.push(step);
@@ -115,7 +118,8 @@ export class AtifTrajectoryLogger {
       first_pass_success: firstPass,
       repairs_needed: repairs,
       total_duration_ms: endTime - this.startTime,
-      final_code_hash: finalCodeHash
+      final_code_hash: finalCodeHash,
+      final_code: finalCode
     };
 
     return this.trajectory;
