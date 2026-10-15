@@ -1,0 +1,34 @@
+[
+  {
+    "id": "voting_systems",
+    "concept": "First-Past-The-Post vs Ranked Choice Voting",
+    "description": "An explanation of how First-Past-The-Post voting often leads to a two-party system through the spoiler effect, whereas Ranked Choice Voting allows voters to express their true preferences without penalizing their favorite candidates."
+  },
+  {
+    "id": "predator_prey",
+    "concept": "Lotka-Volterra Predator-Prey Dynamics",
+    "description": "The Lotka-Volterra equations model the dynamics of biological systems in which two species interact, one as a predator and the other as prey.",
+    "mathSnippets": [
+      "dx/dt = \u03b1x - \u03b2xy",
+      "dy/dt = \u03b4xy - \u03b3y"
+    ]
+  },
+  {
+    "id": "cpu_cache",
+    "concept": "CPU Cache Coherence (MESI Protocol)",
+    "description": "The MESI protocol is a cache coherence protocol widely used to support write-back caches. It ensures memory consistency across multiple processors by assigning states: Modified, Exclusive, Shared, or Invalid."
+  },
+  {
+    "id": "softmax_temperature",
+    "concept": "Softmax Temperature Scaling in Neural Networks",
+    "description": "In neural networks, softmax is used to convert logits into probabilities. Temperature scaling divides the logits by a parameter T before the softmax. High T produces a softer, flatter distribution, while low T sharpens it towards the maximum logit.",
+    "mathSnippets": [
+      "P(y_i) = \\frac{e^{z_i / T}}{\\sum_j e^{z_j / T}}"
+    ]
+  },
+  {
+    "id": "supply_demand",
+    "concept": "Market Equilibrium and Shifts in Supply and Demand",
+    "description": "In microeconomics, the intersection of the supply and demand curves determines the market equilibrium price and quantity. Shifts in these curves (e.g., due to subsidies or consumer preference changes) move the equilibrium point."
+  }
+]
