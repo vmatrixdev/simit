@@ -51,10 +51,10 @@ export async function resolveActiveViewport(contextViewport?: { width: number; h
   try {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
       const res = await chrome.storage.local.get('simit_sidepanel_viewport');
-      if (res && res.simit_sidepanel_viewport && res.simit_sidepanel_viewport.width > 0) {
+      if (res && res.simit_sidepanel_viewport && (res.simit_sidepanel_viewport as any).width > 0) {
         lastKnownSidepanelViewport = {
-          width: Math.max(320, Math.round(res.simit_sidepanel_viewport.width)),
-          height: Math.max(380, Math.round(res.simit_sidepanel_viewport.height))
+          width: Math.max(320, Math.round((res.simit_sidepanel_viewport as any).width)),
+          height: Math.max(380, Math.round((res.simit_sidepanel_viewport as any).height))
         };
         return lastKnownSidepanelViewport;
       }
