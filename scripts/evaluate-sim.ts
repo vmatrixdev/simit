@@ -44,31 +44,23 @@ interface EvalResult {
 async function generateSimulationCode(entry: DatasetEntry, openai: OpenAI): Promise<string> {
     console.log(`[Eval] Generating simulation for: ${entry.concept}`);
 
-    const prompt = `You are SimIt's Epistemic Architect and Coder.
-Translate the following concept into a single JavaScript ES module adhering to the SimIt simEngine contract.
+    const { buildSimulationSystemPrompt } = await import('../src/providers/prompt-builder.js');
+    const systemPrompt = buildSimulationSystemPrompt({ width: 500, height: 600 });
+
+    const prompt = `Translate the following concept into a single JavaScript ES module adhering to the SimIt simEngine contract.
 
 Concept: ${entry.concept}
 Description: ${entry.description}
 Math: ${entry.mathSnippets ? entry.mathSnippets.join('; ') : 'N/A'}
-
-Rules:
-1. Output ONLY valid JS starting with "export default {".
-2. You MUST use <simulation_code>...</simulation_code> to wrap the JS.
-3. Pre-loaded global libraries available: Tweakpane, Canvas, anime.js, cytoscape, katex, mathjs, jstat, matter-js, functionPlot, d3, glMatrix.
-4. Implement:
-   - title
-   - description
-   - parameters: [{ id, label, type: "slider"|"toggle", min, max, default, step }]
-   - init(container, params)
-   - update(params)
-   - destroy()
-5. Make it beautiful, intriguing, and visually revealing.
 `;
 
     try {
         const response = await openai.chat.completions.create({
             model: "gpt-4o", // Using gpt-4o for code generation in eval script
-            messages: [{ role: "user", content: prompt }],
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: prompt }
+            ],
             temperature: 0.2
         });
 
