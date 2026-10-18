@@ -272,7 +272,7 @@ function getMockSimulationForPrompt(promptText: string): string {
   if (lower.includes('graph') || lower.includes('dijkstra') || lower.includes('node') || lower.includes('edge')) {
     return SIMULATION_GRAPH;
   }
-  if (lower.includes('tcp') || lower.includes('state') || lower.includes('handshake') || lower.includes('fsm')) {
+  if (lower.includes('tcp') || lower.includes('handshake') || lower.includes('fsm')) {
     return SIMULATION_STATE_MACHINE;
   }
   return SIMULATION_HARMONIC;

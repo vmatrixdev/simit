@@ -499,7 +499,7 @@ delegate_to_coder({
           requestId: req.requestId,
           status: 'ok',
           validatedCode: req.rawCode,
-          parameters: [{ id: 'k', label: 'Rate', type: 'slider', min: 0, max: 10, default: 2 }]
+          parameters: [{ id: 'k', label: 'Rate', type: 'slider', min: 0, max: 10, step: 1, default: 2 }]
         };
       };
 
@@ -517,7 +517,7 @@ delegate_to_coder({
                 "description": "Adaptive wide-screen simulation",
                 "visualPlan": "Wide responsive canvas",
                 "mathFormulation": "dx/dt = -k x",
-                "parametersSpec": [{ "id": "k", "label": "Rate", "type": "slider", "min": 0, "max": 10, "default": 2 }]
+                "parametersSpec": [{ "id": "k", "label": "Rate", "type": "slider", "min": 0, "max": 10, "step": 1, "default": 2 }]
               })`
             };
           } else if (capturedPrompts.length === 2) {

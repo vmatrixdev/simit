@@ -17,6 +17,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "npm run build && node --experimental-strip-types tests/e2e/simit.e2e.ts",
+    "eval": "node --experimental-strip-types scripts/evaluate-sim.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
@@ -30,7 +31,7 @@
     "d3": "^7.9.0",
     "jsdom": "^29.1.1",
     "katex": "^0.19.0",
-    "playwright": "^1.63.0",
+    "playwright": "^1.64.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.2",
@@ -40,11 +41,13 @@
     "@types/cytoscape": "^3.21.9",
     "@types/matter-js": "^0.20.2",
     "cytoscape": "^3.34.3",
+    "dotenv": "^18.0.8",
     "function-plot": "^1.25.4",
     "gl-matrix": "^3.4.4",
     "jstat": "^1.9.6",
     "mathjs": "^15.2.0",
     "matter-js": "^0.20.0",
+    "openai": "^7.34.0",
     "tweakpane": "^4.0.5"
   }
 }
