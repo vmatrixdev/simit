@@ -132,4 +132,33 @@ describe('Conversational Evolution Specification (docs/specs/conversational_evol
     const structural = triageRefinementIntent('render a phase boundary line', activeParams);
     expect(structural.intentType).toBe('structural_evolution');
   });
+
+  it('E8: Runtime extractOrGenerateChips prioritizes guided tour steps from explanation.tour when present', async () => {
+    const { extractOrGenerateChips } = await import('../src/runtime/evolution');
+    const chips = extractOrGenerateChips(
+      'export default {}',
+      [
+        { id: 'zeta', label: 'Damping (ζ)', type: 'slider', min: 0.0, max: 2.0, step: 0.05, default: 0.2 }
+      ],
+      'parameter_explorer',
+      {
+        insight: 'Critical damping settles fastest without overshoot.',
+        legend: [{ symbol: 'ζ', meaning: 'Damping ratio', color: '#38bdf8' }],
+        tour: [
+          { title: 'Underdamped Ringing', caption: 'Oscillates at ζ=0.15', params: { zeta: 0.15 } },
+          { title: 'Critical Damping (ζ=1)', caption: 'Zero overshoot at ζ=1.0', params: { zeta: 1.0 } },
+          { title: 'Overdamped Creep', caption: 'Sluggish decay at ζ=1.8', params: { zeta: 1.8 } }
+        ]
+      }
+    );
+
+    expect(chips.length).toBeLessThanOrEqual(4);
+    expect(chips[0].id).toBe('chip-tour-step-1');
+    expect(chips[0].label).toContain('Oscillates at ζ=0.15');
+    expect(chips[0].targetParamId).toBe('zeta');
+    expect(chips[0].presetValue).toBe(0.15);
+    expect(chips[1].id).toBe('chip-tour-step-2');
+    expect(chips[1].presetValue).toBe(1.0);
+  });
 });
+

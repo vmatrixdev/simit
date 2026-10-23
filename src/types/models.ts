@@ -67,6 +67,19 @@ export interface BYOKStorageSettings {
   fallbackToBYOKOnNanoUnavailable: boolean;
 }
 
+/**
+ * Raster image attached to a generation request (multimodal input).
+ * Conforms to docs/specs/model_providers.md#33-multimodal-image-attachments
+ * - base64Data is the raw base64 payload WITHOUT the `data:<mime>;base64,` prefix.
+ * - SVG is NOT a valid attachment type; SVG snapshots must be rasterized first.
+ */
+export interface ImageAttachment {
+  mimeType: 'image/png' | 'image/jpeg' | 'image/webp';
+  base64Data: string;
+  /** Short caption placed in the prompt next to the image, e.g. "Frame: defaults". */
+  label?: string;
+}
+
 export interface GenerationPromptPayload {
   systemPrompt: string;
   userPrompt: string;
@@ -74,6 +87,8 @@ export interface GenerationPromptPayload {
   maxTokens?: number;
   enableThinking?: boolean;
   thinkingBudgetTokens?: number;
+  /** Optional multimodal image inputs. Ignored (with ATIF warning) by providers where supportsVision() is false. */
+  images?: ImageAttachment[];
 }
 
 export interface GenerationResponse {
@@ -94,5 +109,7 @@ export interface IModelProvider {
   readonly isLocal: boolean;
   isAvailable(): Promise<boolean>;
   isThinkingSupported?(): boolean;
+  /** True when the provider forwards GenerationPromptPayload.images to the model. */
+  supportsVision?(): boolean;
   generateSimulation(payload: GenerationPromptPayload): Promise<GenerationResponse>;
 }

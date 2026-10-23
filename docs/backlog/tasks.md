@@ -1,8 +1,8 @@
 # SimIt Execution Backlog
 
 **Lifecycle:** Ephemeral Backlog under `docs/backlog/`  
-**Master Specifications:** [docs/specs/index.md](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/index.md)  
-**Roadmap Source:** [docs/product/roadmap.md](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/product/roadmap.md)  
+**Master Specifications:** [docs/specs/index.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/index.md)  
+**Roadmap Source:** [docs/product/roadmap.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/product/roadmap.md)  
 
 ---
 
@@ -24,7 +24,7 @@ flowchart TD
         T4 --> T7 --> T6
     end
 
-    subgraph P2["Phase 2: Declarative Runtime, Reasoning Decoupling & Archetype Triage (QUEUED)"]
+    subgraph P2["Phase 2: Declarative Runtime, Reasoning Decoupling & Archetype Triage (COMPLETED)"]
         direction TB
         T8["Task 8: Declarative Runtime Stack (Tweakpane, functionPlot, Cytoscape)"]
         T9["Task 9: Reasoning Decoupling & Explicit Viewport Injection"]
@@ -32,7 +32,7 @@ flowchart TD
         T8 --> T9 --> T10
     end
 
-    subgraph P3["Phase 3: Conversational Evolution, Persistent Memory & Multi-Model Routing (QUEUED)"]
+    subgraph P3["Phase 3: Conversational Evolution, Persistent Memory & Multi-Model Routing (COMPLETED)"]
         direction TB
         T11["Task 11: Dual-Track Evolution (Evolution Chips & Refinement Chat)"]
         T12["Task 12: Context Rolling Compactor & IndexedDB Session Version Stack"]
@@ -45,107 +45,38 @@ flowchart TD
 
 ---
 
-## Phase 1 Execution Checklist (Status: Completed)
+## Phase 5 Execution Checklist (Status: Completed - P0 Robustness & Verification Harness)
 
-### Step 1: Manifest V3 Extension Shell & Side Panel
-- [x] Initialize extension project scaffolding (WXT / Vite toolchain) with TypeScript and Manifest V3.
-- [x] Configure `manifest.json` with permissions (`sidePanel`, `contextMenus`, `activeTab`, `scripting`, `offscreen`, `storage`) conforming to [docs/specs/architecture.md#1-high-level-architecture-overview](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/architecture.md#1-high-level-architecture-overview).
-- [x] Implement background Service Worker lifecycle listener establishing Side Panel routing via `chrome.sidePanel.setPanelBehavior`.
-- [x] Scaffold `sidepanel.html` frame with header, status pill, simulation container, and parameter controls dock conforming to [docs/specs/architecture.md#side-panel-ui-host](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/architecture.md).
+### Step 15: Multimodal Image Wire Protocol & Provider Integration
+- [x] Implement `src/providers/multimodal.ts` mapping pure `ImageAttachment` arrays to Gemini `inline_data`, Anthropic base64 images, and OpenAI `image_url` payloads conforming to [docs/specs/model_providers.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/model_providers.md).
+- [x] Wire image attachments into `GoogleGeminiProvider`, `AnthropicProvider`, and `OpenAICompatibleProvider` conforming to [docs/specs/model_providers.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/model_providers.md).
+- [x] Pass `tests/multimodal_mapping.test.ts` unit test suite conforming to [docs/specs/model_providers.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/model_providers.md).
 
-### Step 2: Right-Click "SimIt" Menu & Context Harvester
-- [x] Register context menu item titled **"SimIt"** for selection contexts (`contexts: ["selection"]`) in background Service Worker conforming to [docs/specs/context_harvester.md#31-typescript-domain-models](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/context_harvester.md#31-typescript-domain-models).
-- [x] Implement `content-script.ts` selection harvester with LaTeX regex parsing conforming to [docs/specs/context_harvester.md#32-math-extraction-delimiters--selectors](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/context_harvester.md#32-math-extraction-delimiters--selectors).
-- [x] Implement KaTeX, MathJax, and MathML DOM annotation extractors conforming to [docs/specs/context_harvester.md#32-math-extraction-delimiters--selectors](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/context_harvester.md#32-math-extraction-delimiters--selectors).
-- [x] Implement DOM hierarchy traverser for section headings (`h1`–`h4`) and figure captions conforming to [docs/specs/context_harvester.md#4-domain-invariants--edge-cases](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/context_harvester.md#4-domain-invariants--edge-cases).
-- [x] Add 2,000-character payload sanitization and budget limiter conforming to invariant in [docs/specs/context_harvester.md#4-domain-invariants--edge-cases](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/context_harvester.md#4-domain-invariants--edge-cases).
+### Step 16: Simulation Module Contract & Stage Geometry
+- [x] Implement `src/runtime/module-contract.ts` single-source prompt generator (`buildModuleContractPromptSection`), `computeStageGeometry`, and `dispatchParameterUpdate` conforming to [docs/specs/simulation_module_contract.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/simulation_module_contract.md).
+- [x] Integrate single-source contract into `agent-orchestrator.ts` and `prompt-builder.ts` eliminating duplicate Tweakpanes and docking `#pane-dock` as a bottom controls drawer conforming to [docs/specs/simulation_module_contract.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/simulation_module_contract.md).
+- [x] Pass `tests/module_contract.test.ts` unit test suite conforming to [docs/specs/simulation_module_contract.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/simulation_module_contract.md).
 
-### Step 3: Sandboxed Execution Iframe
-- [x] Scaffold `sandbox.html` declared under `manifest.json` `sandbox.pages` conforming to [docs/specs/sandbox_ipc.md#32-manifest-v3-sandbox-declaration--pre-loaded-stack](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/sandbox_ipc.md#32-manifest-v3-sandbox-declaration--pre-loaded-stack).
-- [x] Bundle local offline dependencies (`d3.v7.min.js`, `anime.v3.min.js`, `katex.min.js`) into extension sandbox bundle conforming to [docs/specs/agent_loop.md#4-sandboxed-runtime-api--declarative-library-stack](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/agent_loop.md#4-sandboxed-runtime-api--declarative-library-stack).
-- [x] Implement bidirectional `postMessage` protocol handler in `sandbox.html` conforming to message schemas in [`src/types/ipc.ts`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/ipc.ts) and [docs/specs/sandbox_ipc.md#31-typescript-domain-models](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/sandbox_ipc.md#31-typescript-domain-models).
-- [x] Implement dynamic parameter UI renderer (sliders, toggles, steppers) inside `sidepanel.html` that sends updates into the iframe conforming to [`src/types/simulation.ts`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/simulation.ts).
+### Step 17: Pre-Flight Verification Harness & Automated Diagnostics
+- [x] Implement pure diagnostic algorithms (`computeRasterStats`, `isBlankRender`, `scanNonFiniteText`, `detectDuplicateControls`, `detectCanvasSizing`, `buildSweepPlan`) and multi-phase `verifySimulationInStage` runner in `src/runtime/verification.ts` conforming to [docs/specs/simulation_verification.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/simulation_verification.md).
+- [x] Refactor offscreen harness (`offscreen.html`) and sandbox runtime (`sandbox.ts`) to mount visibly offscreen (`position: fixed; left: -10000px`) at active panel dimensions and soak across rAF frames conforming to [docs/specs/simulation_verification.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/simulation_verification.md).
+- [x] Implement IPC protocol handlers for `SANDBOX_VERIFY_SIMULATION` and `SANDBOX_VERIFICATION_REPORT` conforming to [docs/specs/sandbox_ipc.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/sandbox_ipc.md).
+- [x] Pass `tests/verification_harness.test.ts` unit test suite conforming to [docs/specs/simulation_verification.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/simulation_verification.md).
 
-### Step 4: Default Local Simulation Engine (Gemini Nano / Local Gemma)
-- [x] Implement Chrome Prompt API adapter (`ai.languageModel`) in background worker conforming to [`IModelProvider`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/models.ts) and [docs/specs/model_providers.md#31-typescript-domain-models](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/model_providers.md#31-typescript-domain-models).
-- [x] Implement system prompt builder assembling sandbox contracts and harvested context conforming to [docs/specs/agent_loop.md#6-concrete-system-prompt-specification](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/agent_loop.md#6-concrete-system-prompt-specification).
-- [x] Implement output code fence sanitizer stripping markdown wrappers conforming to [docs/specs/model_providers.md#4-domain-invariants--edge-cases](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/model_providers.md#4-domain-invariants--edge-cases).
-- [x] Add Gemini Nano availability detector with fallback routing to BYOK setup conforming to [docs/specs/model_providers.md#4-domain-invariants--edge-cases](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/model_providers.md#4-domain-invariants--edge-cases).
-
-### Step 5: Pre-Flight Self-Repair & Runtime Error Recovery
-- [x] Implement headless offscreen document (`offscreen.html`) with 100ms smoke test runner conforming to [docs/specs/sandbox_ipc.md#2-domain-model--ipc-topology](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/sandbox_ipc.md#2-domain-model--ipc-topology).
-- [x] Wire 1-shot silent pre-flight repair loop in background worker conforming to sequence in [docs/specs/agent_loop.md#1-the-autonomous-agent-loop](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/agent_loop.md#1-the-autonomous-agent-loop).
-- [x] Implement runtime console error interception (`window.onerror`, `unhandledrejection`) in `sandbox.html` conforming to [docs/specs/sandbox_ipc.md#2-domain-model--ipc-topology](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/sandbox_ipc.md#2-domain-model--ipc-topology).
-- [x] Implement auto-appearing 🛠️ Repair Icon in Side Panel header that captures active slider state and triggers interactive repair conforming to [docs/specs/agent_loop.md#1-the-autonomous-agent-loop](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/agent_loop.md#1-the-autonomous-agent-loop).
-
-### Step 6: Simulation Export & ATIF Trajectory Tracking
-- [x] Implement standalone HTML exporter bundling inlined CSS, KaTeX, D3, Anime, and simulation module conforming to [docs/specs/atif_specification.md#31-standalone-self-contained-html-sim-exporthtml](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/atif_specification.md#31-standalone-self-contained-html-sim-exporthtml).
-- [x] Implement ATIF session trajectory recorder tracking harvest, prompt, inference, pre-flight, and repair steps conforming to schema in [`src/types/atif.ts`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/atif.ts) and [docs/specs/atif_specification.md#2-atif-trajectory-schema-for-simit](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/atif_specification.md#2-atif-trajectory-schema-for-simit).
-- [x] Add 1-click **"Export Simulation (HTML)"** and **"Download ATIF (.atif.json)"** buttons in Side Panel header conforming to [docs/specs/atif_specification.md#4-atif-trajectory-export-in-the-ui](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/atif_specification.md#4-atif-trajectory-export-in-the-ui).
-
-### Step 7: BYOK (Bring Your Own Key) Provider Settings
-- [x] Build Provider Settings modal / panel in `sidepanel.html` conforming to schema in [docs/specs/model_providers.md#32-chrome-storage-schema-simit_byok_settings](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/model_providers.md#32-chrome-storage-schema-simit_byok_settings).
-- [x] Implement Anthropic Claude client provider (`claude-3-5-sonnet`) conforming to [`IModelProvider`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/models.ts).
-- [x] Implement Google Gemini Cloud client provider (`gemini-2.5-flash`) conforming to [`IModelProvider`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/models.ts).
-- [x] Implement OpenAI-compatible client provider (Ollama / custom base URL) conforming to [`IModelProvider`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/models.ts).
-- [x] Implement secure `chrome.storage.local` persistence and connection test verification for configured API keys conforming to [docs/specs/model_providers.md#4-domain-invariants--edge-cases](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/model_providers.md#4-domain-invariants--edge-cases).
+### Step 18: Code Patching Revisions & Quality Flags
+- [x] Update `executeAutonomousSimulationLoop` in `src/runtime/agent-orchestrator.ts` to feed previous code, full stack traces, and diagnostics back to Coder on revision conforming to [docs/specs/autonomous_agent_architecture.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/autonomous_agent_architecture.md).
+- [x] Attach rendered raster frames directly to vision review prompt `images` payload conforming to [docs/specs/autonomous_agent_architecture.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/autonomous_agent_architecture.md).
+- [x] Emit explicit `QualityFlag` warnings when fallbacks or parse errors occur conforming to [docs/specs/autonomous_agent_architecture.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/autonomous_agent_architecture.md).
 
 ---
 
-## Phase 2 Execution Checklist (Status: Completed)
+## Phase 6 Execution Checklist (Status: Completed - P1 Pedagogical Explanation & Live Guided Tour)
 
-### Step 8: Declarative Runtime Bundle (`Tweakpane`, `functionPlot`, `cytoscape`)
-- [x] Bundle `tweakpane.min.js` (v4.x), `function-plot.js` (v1.x), and `cytoscape.min.js` (v3.x) into extension sandbox assets conforming to [docs/specs/declarative_runtime.md#31-global-sandbox-window-contract](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/declarative_runtime.md#31-global-sandbox-window-contract).
-- [x] Implement declarative Tweakpane parameter generator in `sandbox.html` replacing custom HTML controls conforming to [docs/specs/declarative_runtime.md#1-overview--business-objectives](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/declarative_runtime.md#1-overview--business-objectives).
-- [x] Implement zero-latency parameter update handler routing slider inputs directly to `Tweakpane.updateParams()` (0ms LLM overhead) conforming to [docs/specs/declarative_runtime.md#4-domain-invariants--edge-cases](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/declarative_runtime.md#4-domain-invariants--edge-cases).
-- [x] Verify functionPlot and Cytoscape integration in sandbox test harness with automated unit tests conforming to [docs/specs/declarative_runtime.md#5-behavioral-acceptance-matrix](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/declarative_runtime.md#5-behavioral-acceptance-matrix).
+### Step 19: Architect Pedagogy Phase, Source Context Forwarding & Pedagogical Review
+- [x] Extend `DELEGATE_TO_CODER_TOOL`, `buildArchitectSystemPrompt`, `normalizeCoderPlan`, `buildCoderUserPrompt`, and `buildArchitectReviewPrompt` in `src/runtime/agent-orchestrator.ts` conforming to [docs/specs/autonomous_agent_architecture.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/autonomous_agent_architecture.md).
+- [x] Generate guided exploration chips from `explanation.tour` in `src/runtime/evolution.ts` and `src/background/service-worker.ts` conforming to [docs/specs/autonomous_agent_architecture.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/autonomous_agent_architecture.md).
 
-### Step 9: Reasoning Decoupling & Viewport Dimension Injection
-- [x] Update Prompt Composer to mandate `<simulation_thinking>...</simulation_thinking>` scratchpad and `<simulation_code>...</simulation_code>` blocks conforming to [docs/specs/agent_loop.md#2-prompting-strategy--reasoning-decoupling](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/agent_loop.md#2-prompting-strategy--reasoning-decoupling).
-- [x] Implement Tag Parser extracting `<simulation_code>` for sandbox execution and routing thinking traces to ATIF telemetry conforming to [docs/specs/model_providers.md#4-domain-invariants--edge-cases](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/model_providers.md#4-domain-invariants--edge-cases).
-- [x] Implement dynamic Side Panel container pixel dimension measurement (`container.clientWidth`, `container.clientHeight`) and injection into prompt payload conforming to [docs/specs/agent_loop.md#3-dynamic-viewport-measurement--injection](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/agent_loop.md#3-dynamic-viewport-measurement--injection).
-- [x] Enable native hidden thinking parameters for Anthropic Claude (Extended Thinking) and Google Gemini (Flash Thinking) providers conforming to [docs/specs/model_providers.md#32-chrome-storage-schema-simit_byok_settings](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/model_providers.md#32-chrome-storage-schema-simit_byok_settings).
-
-### Step 10: Archetype Triage & Non-Simulatable Text Fallbacks
-- [x] Implement upfront archetype triage in orchestrator classifying inputs into dynamic systems vs static concepts conforming to [docs/specs/archetype_triage.md#2-taxonomy--triage-decision-tree](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/archetype_triage.md#2-taxonomy--triage-decision-tree).
-- [x] Implement fallback prompt pipelines generating Cytoscape concept DAGs for non-simulatable text conforming to [docs/specs/archetype_triage.md#3-contracts--data-models](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/archetype_triage.md#3-contracts--data-models).
-- [x] Implement interactive Socratic breakdown chips for static definitions conforming to [docs/specs/archetype_triage.md#3-contracts--data-models](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/archetype_triage.md#3-contracts--data-models).
-- [x] Enforce "No Meaningless Motion" invariant asserting no arbitrary particle animations for non-simulatable text conforming to [docs/specs/archetype_triage.md#4-domain-invariants--edge-cases](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/archetype_triage.md#4-domain-invariants--edge-cases).
-
----
-
-## Phase 3 Execution Checklist (Status: Completed)
-
-### Step 11: Conversational Dual-Track Evolution
-- [x] Implement pre-computed evolution chips (`[+ Add Temperature Scaling]`, `[Show Phase Boundary]`, etc.) in `sidepanel.html` conforming to [docs/specs/conversational_evolution.md#31-pre-computed-evolution-chips-generation-schema](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/conversational_evolution.md#31-pre-computed-evolution-chips-generation-schema).
-- [x] Implement natural language refinement chat bar in `sidepanel.html` conforming to [docs/specs/conversational_evolution.md#1-overview--business-objectives](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/conversational_evolution.md#1-overview--business-objectives).
-- [x] Implement zero-latency parametric triage routing slider changes directly to `Tweakpane.updateParams()` (0ms LLM overhead) conforming to [docs/specs/conversational_evolution.md#4-domain-invariants--guardrails](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/conversational_evolution.md#4-domain-invariants--guardrails).
-- [x] Wire evolution chip clicks and chat submissions to background refinement pipeline conforming to [docs/specs/conversational_evolution.md#2-dual-track-interaction--triage-architecture](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/conversational_evolution.md#2-dual-track-interaction--triage-architecture).
-
-### Step 12: Context Rolling Compactor & IndexedDB Session Version Stack
-- [x] Implement Context Rolling Compactor retaining static paper anchor, single latest `<simulation_code>` snapshot, and sliding 2-turn window conforming to [docs/specs/session_memory.md#2-storage-topology--context-rolling-architecture](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/session_memory.md#2-storage-topology--context-rolling-architecture).
-- [x] Implement client-side IndexedDB persistence layer (`simit_db`, `sessions`, `versions`) storing version snapshots (`v1 -> v2 -> v3`) and parameter states conforming to [docs/specs/session_memory.md#31-indexeddb-database-schema-simit_db](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/session_memory.md#31-indexeddb-database-schema-simit_db).
-- [x] Add version scrubber (`v1`, `v2`, `v3`) in Side Panel header with 1-click state rollback conforming to [docs/specs/session_memory.md#4-domain-invariants--guardrails](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/session_memory.md#4-domain-invariants--guardrails).
-
-### Step 13: Hybrid Multi-Model Routing & Cloud Escalation
-- [x] Implement complexity assessor calculating score from mathematical density and discrete state count conforming to [docs/specs/model_routing.md#31-complexity-scoring-heuristic](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/model_routing.md#31-complexity-scoring-heuristic).
-- [x] Implement autonomous model routing: use local Gemini Nano for instant domain triage and bounds extraction before elevating to frontier models conforming to [docs/specs/model_routing.md#2-two-tier-routing--escalation-architecture](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/model_routing.md#2-two-tier-routing--escalation-architecture).
-- [x] Add 1-click cloud escalation button in Side Panel header allowing user to re-generate complex simulations with configured frontier models conforming to [docs/specs/model_routing.md#4-domain-invariants--guardrails](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/model_routing.md#4-domain-invariants--guardrails).
-
----
-
-## Phase 4 Execution Checklist (Status: Completed)
-
-### Step 14: Autonomous Multi-Agent Loop & Multimodal Visual Review
-- [x] Implement `src/types/agent.ts` domain contracts for micro progress reporting, tool payloads, and visual snapshots conforming to [docs/specs/autonomous_agent_architecture.md#3-micro-progress-reporting-contract-35-words-zero-prefixes](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/autonomous_agent_architecture.md#3-micro-progress-reporting-contract-35-words-zero-prefixes).
-- [x] Implement visual snapshot capture in sandboxed execution controller (`sandbox.ts`) and offscreen harness (`offscreen.ts`) via `canvas.toDataURL()` conforming to [docs/specs/autonomous_agent_architecture.md#4-sandbox-visual-snapshot-tool](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/autonomous_agent_architecture.md#4-sandbox-visual-snapshot-tool).
-- [x] Implement Two-Tier Agent Orchestrator (`src/runtime/agent-orchestrator.ts`) with Epistemic Architect and Coder sub-agent delegation loop conforming to [docs/specs/autonomous_agent_architecture.md#2-end-to-end-autonomous-agent-loop](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/autonomous_agent_architecture.md#2-end-to-end-autonomous-agent-loop).
-- [x] Implement Multimodal Visual Review & Critique loop with targeted revision direction conforming to [docs/specs/autonomous_agent_architecture.md#53-the-multimodal-visual-review-prompt](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/autonomous_agent_architecture.md#53-the-multimodal-visual-review-prompt).
-- [x] Integrate Side Panel persistent execution anchor and 3-5 word micro status dock conforming to [docs/specs/autonomous_agent_architecture.md#3-micro-progress-reporting-contract-35-words-zero-prefixes](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/autonomous_agent_architecture.md#3-micro-progress-reporting-contract-35-words-zero-prefixes).
-- [x] Wire autonomous multi-agent orchestrator into background Service Worker (`service-worker.ts`) and log all stages to ATIF (`atif_specification.md`) for debugging, benchmarking, and Side Panel export.
-- [x] Add comprehensive automated test suite `tests/agent_orchestrator.test.ts` verifying A1-A7 acceptance criteria conforming to [docs/specs/autonomous_agent_architecture.md#7-behavioral-acceptance-matrix](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/autonomous_agent_architecture.md#7-behavioral-acceptance-matrix).
-
-
-
-
+### Step 20: Module Explanation Contract & Host-Rendered Guided Tour Bar
+- [x] Implement `validateSimulationModuleContract` and document `explanation: { insight, legend, tour }` in `src/runtime/module-contract.ts` conforming to [docs/specs/simulation_module_contract.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/simulation_module_contract.md).
+- [x] Render `#explanation-dock` and `#tour-bar` in `src/sandbox/sandbox.html`, `src/sandbox/sandbox.css`, `src/sandbox/sandbox.ts`, and `src/export/standalone-exporter.ts` conforming to [docs/specs/simulation_module_contract.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/simulation_module_contract.md).
 

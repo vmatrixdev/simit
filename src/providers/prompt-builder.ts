@@ -6,6 +6,11 @@
 import { HarvestedContext } from '../types/harvester';
 import { GenerationPromptPayload } from '../types/models';
 import { ParameterState } from '../types/simulation';
+import {
+  computeStageGeometry,
+  buildModuleContractPromptSection,
+  DEFAULT_HOST_LAYOUT
+} from '../runtime/module-contract';
 
 export interface SimulationViewport {
   width: number;
@@ -15,8 +20,17 @@ export interface SimulationViewport {
 export function buildSimulationSystemPrompt(viewport?: SimulationViewport): string {
   const defaultWidth = viewport?.width ? Math.max(320, viewport.width) : 380;
   const defaultHeight = viewport?.height ? Math.max(380, viewport.height) : 450;
+  const stage = computeStageGeometry({
+    viewportWidth: defaultWidth,
+    viewportHeight: defaultHeight,
+    controlsDrawerHeight: DEFAULT_HOST_LAYOUT.controlsDrawerHeight,
+    viewportPill: DEFAULT_HOST_LAYOUT.viewportPill,
+    devicePixelRatio: typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+  });
 
   return `You are SimIt, an expert simulation and visual explanation engineer. Your mission is to convert complex technical concepts, mathematical formulations, and algorithms into epistemic software: living, parameter-driven, interactive visual models.
+
+${buildModuleContractPromptSection(stage)}
 
 ### VIEWPORT SPECIFICATION & FULL-BLEED RESPONSIVE DESIGN
 The host container #sim-root currently has measured viewport dimensions from the active browser Side Panel: width = ${defaultWidth}px, height = ${defaultHeight}px.
@@ -123,7 +137,7 @@ Select the natural interactive modality for the technical concept:
    - Exploration: Provide draggable input probes, dynamic tangent lines, gradient descent marbles rolling down the curve, and KaTeX badges evaluating live numeric values.
 
 ### STRICT ANTI-PATTERNS (These ruin simulation quality)
-- 🚫 THE SLIDESHOW ANTI-PATTERN: DO NOT hardcode a static array of 5 steps \`const steps = [...]\` and a single \`step\` slider. If modeling an algorithm, compute state reactively from dynamic parameters and user clicks!
+- 🚫 STATIC FRAMES / DISCONNECTED SLIDES: Guided tours (\`explanation.tour\`) must drive the live simulation model via parameter updates (\`params\` passed to \`update(params)\`); never hardcode static frames or disconnected slides.
 - 🚫 THE FROZEN CURVE ANTI-PATTERN: DO NOT reduce mechanical physical systems (like harmonic oscillators, pendulums, or wave equations) to a static functionPlot graph. Render the living physical mechanism with real-time motion and direct mouse drag!
 - 🚫 INVISIBLE BLACK LABELS: Cytoscape edge labels and Canvas text MUST use high-contrast light colors (\`#f8fafc\`, \`#38bdf8\`) and dark pill backgrounds on dark themes.
 - 🚫 AD-HOC "ZOOM" OR "PAN" PARAMETERS: NEVER create custom "zoom", "zoomLevel", or "pan" parameters in \`parameters\`. SimIt provides native, hardware-accelerated container-level viewport controls (zoom in/out, pan, recenter) at the bottom-left of the stage. Custom zoom parameters break pointer hitboxes and pixel coordinates!
@@ -155,36 +169,45 @@ export default {
     { id: "omega0", label: "Natural Frequency (ω₀)", type: "slider", min: 0.5, max: 5.0, step: 0.1, default: 2.0 },
     { id: "paused", label: "Pause Motion", type: "toggle", default: false }
   ],
-  init(container, params) {
+  init(container, params, stage) {
     this.container = container;
     this.params = { ...params };
+    const dpr = stage?.dpr || 1;
+    const w = stage?.width || container.clientWidth || ${defaultWidth};
+    const h = stage?.height || container.clientHeight || ${defaultHeight};
+    this.w = w;
+    this.h = h;
     const canvas = document.createElement('canvas');
     canvas.style.cssText = 'width: 100%; height: 100%; display: block;';
     container.appendChild(canvas);
-    canvas.width = container.clientWidth || ${defaultWidth};
-    canvas.height = container.clientHeight || ${defaultHeight};
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
+    if (this.ctx && dpr !== 1) this.ctx.scale(dpr, dpr);
 
     // Dynamic state
     this.state = { x: 80, v: 0, t: 0, isDragging: false };
-    this.history = [];
+    this.history = [80];
 
     // Direct Manipulation: Drag the mass
     canvas.addEventListener('pointerdown', (e) => {
       const rect = canvas.getBoundingClientRect();
       const my = e.clientY - rect.top;
-      if (Math.abs(my - (canvas.height / 2 + this.state.x)) < 30) {
+      if (Math.abs(my - (this.h / 2 + this.state.x)) < 30) {
         this.state.isDragging = true;
       }
     });
     window.addEventListener('pointermove', (e) => {
       if (!this.state.isDragging) return;
       const rect = canvas.getBoundingClientRect();
-      this.state.x = (e.clientY - rect.top) - (canvas.height / 2);
+      this.state.x = (e.clientY - rect.top) - (this.h / 2);
       this.state.v = 0;
     });
     window.addEventListener('pointerup', () => { this.state.isDragging = false; });
+
+    // Synchronous first-frame render before starting rAF loop
+    this.draw();
 
     // 60 FPS physics loop
     const loop = () => {
@@ -206,10 +229,10 @@ export default {
     if (this.history.length > 200) this.history.shift();
   },
   draw() {
-    const { ctx, canvas } = this;
+    const { ctx } = this;
     if (!ctx) return;
-    const w = canvas.width;
-    const h = canvas.height;
+    const w = this.w;
+    const h = this.h;
     ctx.fillStyle = '#090d16';
     ctx.fillRect(0, 0, w, h);
 

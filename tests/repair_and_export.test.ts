@@ -208,6 +208,12 @@ describe('Repair Loop & ATIF Export Specifications', () => {
     expect(html).toContain('id="btn-reset"');
     expect(html).toContain('Reset Array');
     expect(html).toContain('id="input-speed"');
-    expect(html).toContain("window.__simModule.update({ [p.id]: true });");
+    expect(html).toContain('window.__simModule.update({ ...currentParams, [p.id]: true });');
+    expect(html).toContain('safeArea: { top: 0, right: 0, bottom: 0, left: 0 }');
+    expect(html).toContain('id="explanation-dock"');
+    expect(html).toContain('id="tour-bar"');
+    expect(html).toContain('id="btn-tour-prev"');
+    expect(html).toContain('id="btn-tour-next"');
   });
 });
+

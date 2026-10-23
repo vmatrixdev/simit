@@ -5,6 +5,7 @@
 
 import { GenerationPromptPayload, GenerationResponse, IModelProvider, ProviderType } from '../types/models';
 import { extractSimulationTags } from '../runtime/preflight';
+import { toOpenAIContent } from './multimodal';
 
 export class OpenAICompatibleProvider implements IModelProvider {
   readonly type: ProviderType = 'openai-compatible';
@@ -40,6 +41,10 @@ export class OpenAICompatibleProvider implements IModelProvider {
     }
   }
 
+  supportsVision(): boolean {
+    return true;
+  }
+
   async generateSimulation(payload: GenerationPromptPayload): Promise<GenerationResponse> {
     const startTime = Date.now();
     const endpoint = `${this.baseUrl}/chat/completions`;
@@ -51,11 +56,13 @@ export class OpenAICompatibleProvider implements IModelProvider {
       headers['Authorization'] = `Bearer ${this.apiKey}`;
     }
 
+    const userContent = toOpenAIContent(payload.userPrompt, payload.images);
+
     const body = {
       model: this.modelName,
       messages: [
         { role: 'system', content: payload.systemPrompt },
-        { role: 'user', content: payload.userPrompt }
+        { role: 'user', content: userContent }
       ],
       temperature: payload.temperature ?? this.temperature,
       max_tokens: payload.maxTokens || 4096

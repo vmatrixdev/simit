@@ -279,4 +279,48 @@ export default {
     expect(userOscillatorCode.state.x).toBe(3);
     expect(userOscillatorCode.state.isRunning).toBe(true);
   });
+
+  it('delegates to verifySimulationInStage and returns VerificationReport when request.verification is provided', async () => {
+    const failingCode = `
+      export default {
+        title: "NaN Sweep Sim",
+        parameters: [
+          { id: "m", label: "Mass", type: "slider", min: 0, max: 10, step: 1, default: 5 }
+        ],
+        init(container, params, stage) {
+          const c = document.createElement('canvas');
+          c.width = stage.width;
+          c.height = stage.height;
+          container.appendChild(c);
+          this.label = document.createElement('div');
+          container.appendChild(this.label);
+          this.update(params);
+        },
+        update(params) {
+          this.label.textContent = 'a = ' + (0 / params.m);
+        }
+      };
+    `;
+
+    const res = await runPreFlightSmokeTest({
+      type: 'PREFLIGHT_TEST_REQUEST',
+      requestId: 'pf-verify-1',
+      rawCode: failingCode,
+      timeoutMs: 1000,
+      verification: {
+        viewport: { width: 380, height: 450 },
+        soakMs: 16,
+        sweep: true,
+        captureFrames: true
+      }
+    });
+
+    expect(res.status).toBe('error');
+    if (res.status === 'error') {
+      expect(res.report).toBeDefined();
+      expect(res.report?.status).toBe('fail');
+      expect(res.report?.diagnostics.some(d => d.code === 'NON_FINITE_TEXT' && d.phase === 'min')).toBe(true);
+      expect(res.errorMessage).toContain('NON_FINITE_TEXT');
+    }
+  });
 });

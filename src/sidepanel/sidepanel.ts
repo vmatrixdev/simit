@@ -11,7 +11,7 @@ import {
   EvolutionRequestMessage,
   EvolutionResponseMessage
 } from '../types/ipc';
-import { ParameterDefinition, ParameterState } from '../types/simulation';
+import { ParameterDefinition, ParameterState, SimulationExplanation } from '../types/simulation';
 import { AtifTrajectory } from '../types/atif';
 import { BYOKStorageSettings, ProviderType } from '../types/models';
 import { EvolutionChip } from '../types/evolution';
@@ -1490,6 +1490,7 @@ let currentVersions: VersionItem[] = [];
 let currentEvolutionChips: EvolutionChip[] = [];
 let activeCode: string = '';
 let activeParameters: ParameterDefinition[] = [];
+let activeExplanation: SimulationExplanation | undefined;
 let currentParamsState: ParameterState = {};
 let lastRuntimeError: { message: string; stack?: string } | null = null;
 let currentAtifTrajectory: AtifTrajectory | null = null;
@@ -1524,8 +1525,17 @@ let pendingInitMessage: SandboxInitSimulationMessage | null = null;
 /**
  * Initializes simulation in sandboxed iframe
  */
-export function initSimulationInIframe(code: string, initialParams?: ParameterState) {
+export function initSimulationInIframe(
+  code: string,
+  initialParams?: ParameterState,
+  explanation?: SimulationExplanation
+) {
   activeCode = code;
+  if (explanation !== undefined) {
+    activeExplanation = explanation;
+  } else if (code === WELCOME_SIMULATION_CODE) {
+    activeExplanation = undefined;
+  }
   btnRepair.style.display = 'none';
   lastRuntimeError = null;
 
@@ -1539,7 +1549,8 @@ export function initSimulationInIframe(code: string, initialParams?: ParameterSt
   const msg: SandboxInitSimulationMessage = {
     type: 'SANDBOX_INIT_SIMULATION',
     code,
-    initialParams
+    initialParams,
+    ...(activeExplanation ? { explanation: activeExplanation } : {})
   };
 
   if (!isSandboxReady) {
@@ -1783,6 +1794,9 @@ window.addEventListener('message', (event) => {
   if (data.type === 'SANDBOX_SIMULATION_READY') {
     simTitle.textContent = data.title;
     simDesc.textContent = data.description;
+    if (data.explanation) {
+      activeExplanation = data.explanation;
+    }
     renderControlsDock(data.parameters, currentParamsState);
     if (activeCode === WELCOME_SIMULATION_CODE) {
       setStatusPill('Ready');
@@ -1858,11 +1872,12 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
           currentAtifTrajectory = message.atifTrajectory;
         }
         activeCode = message.code;
+        activeExplanation = message.explanation;
         const simCodePreview = document.getElementById('sim-code-preview');
         if (simCodePreview) {
           simCodePreview.textContent = activeCode;
         }
-        initSimulationInIframe(message.code, message.initialParams);
+        initSimulationInIframe(message.code, message.initialParams, message.explanation);
 
         if (message.parameters) {
           activeParameters = message.parameters;
@@ -1905,6 +1920,13 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
           }
         } else {
           setStatusPill('Active');
+          const flags: string[] = Array.isArray(message.qualityFlags) ? message.qualityFlags : [];
+          if (flags.length > 0 && statusPill) {
+            statusPill.textContent = 'Active • Notice';
+            statusPill.title = `Quality notices: ${flags.join(', ')}`;
+          } else if (statusPill) {
+            statusPill.title = '';
+          }
           setMorphingProgress(4, 'Simulation Ready!', 'Interactive runtime active • Explorable', 'ready', 5000);
           if (simVerifyingBanner) {
             simVerifyingBanner.style.display = 'none';
@@ -1983,6 +2005,7 @@ btnExportHtml?.addEventListener('click', () => {
     description: simDesc.textContent || '',
     parameters: activeParameters,
     initialParams: currentParamsState,
+    explanation: activeExplanation,
     code: activeCode
   });
 

@@ -63,7 +63,8 @@ flowchart TD
     "model_name": "gemini-nano",
     "is_local": true,
     "temperature": 0.2,
-    "native_thinking_enabled": false
+    "native_thinking_enabled": false,
+    "vision_supported": true
   },
   "harvested_context": {
     "source_url": "https://arxiv.org/abs/1706.03762",
@@ -81,46 +82,33 @@ flowchart TD
   "trajectory": [
     {
       "step_index": 1,
-      "stage": "PROMPT_COMPOSE",
+      "stage": "ARCHITECT_PLAN",
       "timestamp": "2026-10-02T19:30:00.120Z",
-      "input": {
-        "system_prompt_tokens_est": 850,
-        "context_tokens_est": 120,
-        "viewport": { "width": 380, "height": 450 }
-      },
-      "output": {
-        "final_prompt_hash": "sha256:7f83b1..."
-      }
+      "input": { "concept": "Attention" },
+      "output": { "plan_title": "Scaled Dot-Product Attention" }
     },
     {
       "step_index": 2,
-      "stage": "MODEL_INFERENCE",
+      "stage": "SANDBOX_EVALUATION",
       "timestamp": "2026-10-02T19:30:02.100Z",
-      "duration_ms": 1980,
-      "output": {
-        "thinking_trace": "1. Mathematical model: Softmax temperature scaling P_i = exp(z_i / tau)... 2. Bounds: tau in [0.1, 5.0]...",
-        "raw_code": "export default { title: 'Scaled Dot-Product Attention', ... };",
-        "output_chars": 1640
-      }
+      "duration_ms": 820,
+      "status": "PASS",
+      "snapshot_url": "data:image/webp;base64,...",
+      "captured_frames_count": 3,
+      "diagnostics": []
     },
     {
       "step_index": 3,
-      "stage": "PREFLIGHT_VERIFY",
-      "timestamp": "2026-10-02T19:30:02.220Z",
-      "duration_ms": 115,
-      "test_type": "headless_smoke_test",
-      "status": "PASS",
-      "details": {
-        "init_executed": true,
-        "update_tested": true,
-        "parameters_verified": ["tau", "dim_k"],
-        "error": null
-      }
+      "stage": "ARCHITECT_REVIEW",
+      "timestamp": "2026-10-02T19:30:02.900Z",
+      "duration_ms": 310,
+      "status": "APPROVED",
+      "review_mode": "vision"
     },
     {
       "step_index": 4,
       "stage": "RENDER",
-      "timestamp": "2026-10-02T19:30:02.300Z",
+      "timestamp": "2026-10-02T19:30:03.100Z",
       "status": "MOUNTED",
       "initial_params": {
         "tau": 1.0,
@@ -133,9 +121,12 @@ flowchart TD
     "first_pass_success": true,
     "repairs_needed": 0,
     "total_duration_ms": 2300,
-    "final_code_hash": "sha256:4a8c9b..."
+    "final_code_hash": "sha256:4a8c9b...",
+    "quality_flags": [],
+    "diagnostics_count": 0
   }
 }
+
 ```
 
 ---
@@ -165,4 +156,3 @@ In the Side Panel header, developers and power users have access to:
 2. **"Copy ATIF Trajectory"**: Copies the standardized JSON trajectory to the clipboard.
 3. **"Download ATIF (.atif.json)"**: Saves trajectory for benchmark analysis and test suites.
 4. **Auto-Logging Toggle**: When enabled during development, automatically logs all runs into indexed `chrome.storage.local` entries for batch benchmark export.
-

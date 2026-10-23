@@ -6,6 +6,8 @@
 import { HarvestedContext } from './harvester';
 import { ParameterState } from './simulation';
 import { ProviderType } from './models';
+import { QualityFlag, ReviewMode } from './agent';
+import { VerificationDiagnostic } from './verification';
 
 export type AtifStage =
   | 'CONTEXT_HARVEST'
@@ -39,6 +41,8 @@ export interface AtifModelConfig {
   is_local: boolean;
   temperature: number;
   base_url: string | null;
+  /** True when the active model supports native vision inputs */
+  vision_supported?: boolean;
 }
 
 export interface AtifStep {
@@ -53,6 +57,12 @@ export interface AtifStep {
   details?: Record<string, any>;
   initial_params?: ParameterState;
   snapshot_url?: string;
+  /** Multi-frame visual snapshots captured across phases (defaults, min, max) */
+  captured_frames_count?: number;
+  /** Deterministic zero-token verification diagnostics */
+  diagnostics?: VerificationDiagnostic[];
+  /** Mode used for visual review: 'multimodal' vs 'text-only' */
+  review_mode?: ReviewMode;
 }
 
 export interface AtifOutcome {
@@ -62,6 +72,10 @@ export interface AtifOutcome {
   total_duration_ms: number;
   final_code_hash?: string;
   final_code?: string;
+  /** Explicit degradation or fallback quality signals */
+  quality_flags?: QualityFlag[];
+  /** Final verification diagnostic count */
+  diagnostics_count?: number;
 }
 
 export interface AtifTrajectory {

@@ -11,20 +11,51 @@ import {
   RefinementAnalysis,
   RefinementIntentType
 } from '../types/evolution';
-import { ParameterDefinition, ParameterState } from '../types/simulation';
+import { ParameterDefinition, ParameterState, SimulationExplanation } from '../types/simulation';
 
 const MAX_VISIBLE_CHIPS = 4;
 
 /**
- * Extracts evolution chips from thinking trace or generates intelligent archetype fallbacks.
- * Clamps visible chips to top 4 highest-confidence entries.
+ * Extracts evolution chips from explanation.tour (guided exploration steps) or generates
+ * intelligent archetype/parameter fallbacks. Clamps visible chips to top 4 entries.
  */
 export function extractOrGenerateChips(
   code: string,
   parameters: ParameterDefinition[] = [],
-  archetype: string = 'parameter_explorer'
+  archetype: string = 'parameter_explorer',
+  explanation?: SimulationExplanation
 ): EvolutionChip[] {
   const chips: EvolutionChip[] = [];
+
+  // 0. Prefer guided exploration steps from explanation.tour when present
+  if (explanation && Array.isArray(explanation.tour) && explanation.tour.length > 0) {
+    explanation.tour.forEach((step, idx) => {
+      if (chips.length >= MAX_VISIBLE_CHIPS) return;
+      if (!step || typeof step.caption !== 'string' || !step.params || typeof step.params !== 'object') {
+        return;
+      }
+      const paramEntries = Object.entries(step.params).filter(
+        (entry): entry is [string, number | boolean | string] => entry[1] !== undefined
+      );
+      if (paramEntries.length === 0) return;
+      const [firstKey, firstVal] = paramEntries[0];
+      const shortCaption =
+        step.caption.length > 36 ? `${step.caption.slice(0, 33).trim()}...` : step.caption.trim();
+      const safeUpdates: ParameterState = {};
+      for (const [k, v] of paramEntries) {
+        safeUpdates[k] = v;
+      }
+      chips.push({
+        id: `chip-tour-step-${idx + 1}`,
+        label: `🧭 ${shortCaption}`,
+        actionType: 'parameter_preset',
+        targetParamId: firstKey,
+        presetValue: firstVal,
+        parameterUpdates: safeUpdates,
+        rationale: step.noticeThat || step.tryThis || step.caption
+      });
+    });
+  }
 
   // 1. Generate parameter preset chips from existing parameters
   for (const param of parameters) {

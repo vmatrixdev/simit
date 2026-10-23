@@ -8,7 +8,7 @@ import { chromium, type BrowserContext, type Page } from 'playwright';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { startMockServer, DEFAULT_MOCK_PORT } from './mock-server.ts';
+import { startMockServer, DEFAULT_MOCK_PORT, mockTelemetry } from './mock-server.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -50,6 +50,10 @@ export class SimItE2EHarness {
     console.log('[E2E Harness] Launching Chromium with unpacked extension...');
     this.context = await chromium.launchPersistentContext(USER_DATA_DIR, {
       headless: false, // Chrome extensions require headed or new headless mode
+      ignoreDefaultArgs: [
+        '--disable-extensions',
+        '--disable-component-extensions-with-background-pages'
+      ],
       args: [
         `--disable-extensions-except=${DIST_PATH}`,
         `--load-extension=${DIST_PATH}`,
@@ -96,7 +100,7 @@ export class SimItE2EHarness {
     await this.sidepanelPage.goto(sidepanelUrl);
     await this.sidepanelPage.waitForLoadState('domcontentloaded');
 
-    // Configure BYOK settings to route to our local Mock LLM server
+    // Configure BYOK settings to route to our local Mock LLM server with vision-capable model name
     console.log('[E2E Harness] Configuring Extension BYOK Settings via chrome.storage.local...');
     await this.sidepanelPage.evaluate(async (mockPort) => {
       return new Promise<void>((resolve) => {
@@ -106,7 +110,7 @@ export class SimItE2EHarness {
             providers: {
               'openai-compatible': {
                 baseUrl: `http://127.0.0.1:${mockPort}/v1`,
-                modelName: 'mock-llm',
+                modelName: 'gpt-4o-mock',
                 apiKey: 'test-key',
                 temperature: 0.2
               }
@@ -120,9 +124,23 @@ export class SimItE2EHarness {
     console.log('[E2E Harness] Setup completed successfully.');
   }
 
+  private async waitForSimulationTitle(expectedTitle: string) {
+    await this.sidepanelPage.waitForFunction(
+      (target) => {
+        const titleEl = document.getElementById('sim-title');
+        const pillEl = document.getElementById('status-pill');
+        const titleText = titleEl?.textContent?.trim() || '';
+        const pillText = pillEl?.textContent?.trim() || '';
+        return titleText === target && pillText.startsWith('Active');
+      },
+      expectedTitle,
+      { timeout: 15000 }
+    );
+  }
+
   async runHarmonicOscillatorTest(): Promise<TestResult> {
     const startTime = Date.now();
-    const suiteName = 'Harmonic Oscillator (Parameter Explorer)';
+    const suiteName = 'Harmonic Oscillator (Parameter Explorer + Docked Controls)';
     console.log(`\n========================================`);
     console.log(`[RUNNING TEST] ${suiteName}`);
     console.log(`========================================`);
@@ -172,22 +190,23 @@ export class SimItE2EHarness {
         });
       }, harvestedContext);
 
-      // 3. Bring sidepanel page to front and wait for simulation
+      // 3. Bring sidepanel page to front and wait for verified simulation
       await this.sidepanelPage.bringToFront();
 
-      console.log('[E2E Test] Waiting for Side Panel state transition to SIMULATION_READY...');
-      // Wait until #state-simulation is visible
-      await this.sidepanelPage.waitForFunction(() => {
-        const sim = document.getElementById('state-simulation');
-        return sim && window.getComputedStyle(sim).display !== 'none';
-      }, { timeout: 10000 });
+      console.log('[E2E Test] Waiting for Side Panel state transition to Damped Harmonic Oscillator...');
+      await this.waitForSimulationTitle('Damped Harmonic Oscillator');
 
-      // 4. Assert simulation title and controls dock
+      // 4. Assert simulation title and clean status pill (no fallback notices)
       const title = await this.sidepanelPage.$eval('#sim-title', (el) => el.textContent?.trim());
-      console.log(`[E2E Test] Verified Simulation Title: "${title}"`);
+      const statusText = await this.sidepanelPage.$eval('#status-pill', (el) => el.textContent?.trim());
+      console.log(`[E2E Test] Verified Simulation Title: "${title}" | Status Pill: "${statusText}"`);
+      if (statusText !== 'Active') {
+        const noticeTitle = await this.sidepanelPage.$eval('#status-pill', (el) => el.getAttribute('title') || '');
+        throw new Error(`Expected clean 'Active' status pill without fallback notices, got "${statusText}" (${noticeTitle})`);
+      }
 
-      // 5. Verify sandbox iframe rendered the canvas
-      console.log('[E2E Test] Inspecting sandbox iframe DOM...');
+      // 5. Verify sandbox iframe rendered the canvas and docked bottom drawer
+      console.log('[E2E Test] Inspecting sandbox iframe DOM and docked controls drawer...');
       const iframeElement = await this.sidepanelPage.$('#sandbox-iframe');
       if (!iframeElement) throw new Error('Sandbox iframe not found in Side Panel DOM.');
 
@@ -197,22 +216,48 @@ export class SimItE2EHarness {
       await iframe.waitForSelector('#osc-canvas', { timeout: 5000 });
       console.log('[E2E Test] Verified #osc-canvas is present and rendering inside sandbox iframe.');
 
-      // 6. Test Interactive Parameter Controls (move zeta slider)
-      console.log('[E2E Test] Testing interactive slider parameter adjustment...');
-      const slider = await this.sidepanelPage.$('input[type="range"]#input-zeta');
-      if (slider) {
-        await slider.evaluate((el: any) => {
-          el.value = '1.2';
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-        });
-        await this.sidepanelPage.waitForTimeout(300);
+      const hasControlsDrawerClass = await iframe.$eval('body', (el) => el.classList.contains('has-controls-drawer'));
+      if (!hasControlsDrawerClass) {
+        throw new Error('Expected sandbox body to have class "has-controls-drawer" for docked bottom drawer.');
+      }
 
-        // Verify readout in sandbox iframe updated
-        const readoutText = await iframe.$eval('#readout', (el) => el.textContent);
-        console.log(`[E2E Test] Readout updated to: "${readoutText}"`);
-        if (!readoutText?.includes('1.2')) {
-          throw new Error(`Expected readout to reflect parameter 1.2, got: "${readoutText}"`);
-        }
+      // 5b. Verify P1 Guided Tour & Explanation Bar (#explanation-dock and #tour-bar)
+      const hasExplanationBarClass = await iframe.$eval('body', (el) => el.classList.contains('has-explanation-bar'));
+      if (!hasExplanationBarClass) {
+        throw new Error('Expected sandbox body to have class "has-explanation-bar" when module exports explanation.');
+      }
+      const insightText = await iframe.$eval('#explanation-insight', (el) => el.textContent?.trim() || '');
+      console.log(`[E2E Test] Verified Explanation Insight: "${insightText}"`);
+      if (!insightText.includes('critical damping')) {
+        throw new Error(`Expected #explanation-insight to contain core insight, got: "${insightText}"`);
+      }
+
+      // Click Next on Guided Tour (#btn-tour-next) and verify live parameter update to step 2 (zeta = 1.0)
+      console.log('[E2E Test] Clicking #btn-tour-next to advance guided tour to Step 2 (Critical Damping)...');
+      await iframe.click('#btn-tour-next');
+      await this.sidepanelPage.waitForTimeout(200);
+      const stepIndicatorText = await iframe.$eval('#tour-step-indicator', (el) => el.textContent?.trim() || '');
+      const tourStepReadout = await iframe.$eval('#readout', (el) => el.textContent || '');
+      console.log(`[E2E Test] Guided Tour Indicator: "${stepIndicatorText}" | Readout: "${tourStepReadout}"`);
+      if (!stepIndicatorText.includes('2') || !tourStepReadout.includes('Damping: 1')) {
+        throw new Error(`Expected Guided Tour step 2/3 to update Damping to 1, got indicator="${stepIndicatorText}", readout="${tourStepReadout}"`);
+      }
+
+      // 6. Test Interactive Parameter Controls via SANDBOX_UPDATE_PARAMETERS
+      console.log('[E2E Test] Testing interactive parameter adjustment (zeta = 1.2)...');
+      await this.sidepanelPage.evaluate(() => {
+        const iframeEl = document.getElementById('sandbox-iframe') as HTMLIFrameElement | null;
+        iframeEl?.contentWindow?.postMessage({
+          type: 'SANDBOX_UPDATE_PARAMETERS',
+          params: { zeta: 1.2 }
+        }, '*');
+      });
+      await this.sidepanelPage.waitForTimeout(250);
+
+      const readoutText = await iframe.$eval('#readout', (el) => el.textContent);
+      console.log(`[E2E Test] Readout updated to: "${readoutText}"`);
+      if (!readoutText?.includes('1.2')) {
+        throw new Error(`Expected readout to reflect parameter 1.2, got: "${readoutText}"`);
       }
 
       // 7. Capture visual screenshot
@@ -295,10 +340,7 @@ export class SimItE2EHarness {
 
       // 3. Wait for simulation ready
       await this.sidepanelPage.bringToFront();
-      await this.sidepanelPage.waitForFunction(() => {
-        const sim = document.getElementById('state-simulation');
-        return sim && window.getComputedStyle(sim).display !== 'none';
-      }, { timeout: 10000 });
+      await this.waitForSimulationTitle('Quicksort Partition Stepper');
 
       const title = await this.sidepanelPage.$eval('#sim-title', (el) => el.textContent?.trim());
       console.log(`[E2E Test] Verified Simulation Title: "${title}"`);
@@ -310,15 +352,15 @@ export class SimItE2EHarness {
       console.log('[E2E Test] Verified #bar-chart rendered inside sandbox iframe.');
 
       // 5. Test Step Scrubber adjustment
-      console.log('[E2E Test] Testing step parameter change...');
-      const stepInput = await this.sidepanelPage.$('input[type="range"]#input-step');
-      if (stepInput) {
-        await stepInput.evaluate((el: any) => {
-          el.value = '3';
-          el.dispatchEvent(new Event('input', { bubbles: true }));
-        });
-        await this.sidepanelPage.waitForTimeout(300);
-      }
+      console.log('[E2E Test] Testing step parameter change (step = 3)...');
+      await this.sidepanelPage.evaluate(() => {
+        const iframeEl = document.getElementById('sandbox-iframe') as HTMLIFrameElement | null;
+        iframeEl?.contentWindow?.postMessage({
+          type: 'SANDBOX_UPDATE_PARAMETERS',
+          params: { step: 3 }
+        }, '*');
+      });
+      await this.sidepanelPage.waitForTimeout(250);
 
       // 6. Capture visual screenshot
       const screenshotPath = path.join(SCREENSHOTS_DIR, 'quicksort_stepper_simulation.png');
@@ -350,7 +392,7 @@ export class SimItE2EHarness {
 
   async runGraphTraversalTest(): Promise<TestResult> {
     const startTime = Date.now();
-    const suiteName = 'Dijkstra Traversal (Interactive Graph)';
+    const suiteName = 'Dijkstra Traversal (Interactive Graph + SVG Raster Verification)';
     console.log(`\n========================================`);
     console.log(`[RUNNING TEST] ${suiteName}`);
     console.log(`========================================`);
@@ -397,10 +439,7 @@ export class SimItE2EHarness {
       }, harvestedContext);
 
       await this.sidepanelPage.bringToFront();
-      await this.sidepanelPage.waitForFunction(() => {
-        const sim = document.getElementById('state-simulation');
-        return sim && window.getComputedStyle(sim).display !== 'none';
-      }, { timeout: 10000 });
+      await this.waitForSimulationTitle('Dijkstra Shortest Path Visualizer');
 
       const title = await this.sidepanelPage.$eval('#sim-title', (el) => el.textContent?.trim());
       console.log(`[E2E Test] Verified Simulation Title: "${title}"`);
@@ -486,10 +525,7 @@ export class SimItE2EHarness {
       }, harvestedContext);
 
       await this.sidepanelPage.bringToFront();
-      await this.sidepanelPage.waitForFunction(() => {
-        const sim = document.getElementById('state-simulation');
-        return sim && window.getComputedStyle(sim).display !== 'none';
-      }, { timeout: 10000 });
+      await this.waitForSimulationTitle('TCP State Machine Inspector');
 
       const title = await this.sidepanelPage.$eval('#sim-title', (el) => el.textContent?.trim());
       console.log(`[E2E Test] Verified Simulation Title: "${title}"`);
@@ -515,6 +551,87 @@ export class SimItE2EHarness {
     } catch (err: any) {
       await fixturePage.close();
       const failScreenshot = path.join(SCREENSHOTS_DIR, 'state_machine_failure.png');
+      await this.sidepanelPage.screenshot({ path: failScreenshot }).catch(() => {});
+      return {
+        suiteName,
+        passed: false,
+        durationMs: Date.now() - startTime,
+        screenshotPath: failScreenshot,
+        error: err.message || String(err)
+      };
+    }
+  }
+
+  async runSelfRepairLoopTest(): Promise<TestResult> {
+    const startTime = Date.now();
+    const suiteName = 'P0 Self-Repair Loop (NaN Diagnostic -> Code-Preserving Patch -> Multimodal Review)';
+    console.log(`\n========================================`);
+    console.log(`[RUNNING TEST] ${suiteName}`);
+    console.log(`========================================`);
+
+    try {
+      const harvestedContext = {
+        harvestId: `harvest-repair-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        selection: {
+          selectedText: 'self-repair-trigger: Damped harmonic oscillator where initial attempt outputs NaN in readout.',
+          characterCount: 94,
+          sourceUrl: `http://127.0.0.1:${DEFAULT_MOCK_PORT}/fixtures/harmonic_oscillator.html`,
+          documentTitle: 'Self-Repair Verification'
+        },
+        mathSnippets: [
+          { latex: 'm * d^2x/dt^2 + c * dx/dt + k * x = 0', isDisplayMode: true }
+        ],
+        domContext: {
+          nearestHeading: 'Self-Repairing Oscillator',
+          headingLevel: 1,
+          caption: null,
+          paragraphSnippet: 'self-repair-trigger'
+        }
+      };
+
+      console.log('[E2E Test] Triggering self-repair simulation request...');
+      await this.sidepanelPage.evaluate(async (ctx) => {
+        return new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage({
+            type: 'START_SIMULATION_REQUEST',
+            harvestedContext: ctx
+          }, (res) => {
+            if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+            resolve(res);
+          });
+        });
+      }, harvestedContext);
+
+      await this.sidepanelPage.bringToFront();
+      await this.waitForSimulationTitle('Self-Repairing Harmonic Oscillator');
+
+      const iframeElement = await this.sidepanelPage.$('#sandbox-iframe');
+      const iframe = await iframeElement!.contentFrame();
+      await iframe!.waitForSelector('#osc-canvas', { timeout: 5000 });
+
+      if (mockTelemetry.revisionPayloadsWithPreviousCode < 1) {
+        throw new Error(`Expected Coder revision payload to include PREVIOUS CODE and NON_FINITE_TEXT diagnostic, got count=${mockTelemetry.revisionPayloadsWithPreviousCode}`);
+      }
+      if (mockTelemetry.multimodalImagesReceived < 3) {
+        throw new Error(`Expected Reviewer to receive multimodal PNG snapshots from Offscreen Harness, got count=${mockTelemetry.multimodalImagesReceived}`);
+      }
+      console.log(`[E2E Test] Verified Telemetry: multimodalImagesReceived=${mockTelemetry.multimodalImagesReceived}, revisionPayloadsWithPreviousCode=${mockTelemetry.revisionPayloadsWithPreviousCode}`);
+
+      const screenshotPath = path.join(SCREENSHOTS_DIR, 'self_repair_oscillator_simulation.png');
+      await this.sidepanelPage.screenshot({ path: screenshotPath });
+      console.log(`[E2E Test] Visual screenshot captured: ${screenshotPath}`);
+
+      return {
+        suiteName,
+        passed: true,
+        durationMs: Date.now() - startTime,
+        screenshotPath,
+        archetype: 'SELF_REPAIR',
+        controlsTested: 1
+      };
+    } catch (err: any) {
+      const failScreenshot = path.join(SCREENSHOTS_DIR, 'self_repair_failure.png');
       await this.sidepanelPage.screenshot({ path: failScreenshot }).catch(() => {});
       return {
         suiteName,
@@ -552,6 +669,7 @@ export async function runAllE2ETests() {
     results.push(await harness.runQuicksortStepperTest());
     results.push(await harness.runGraphTraversalTest());
     results.push(await harness.runStateMachineTest());
+    results.push(await harness.runSelfRepairLoopTest());
   } catch (err: any) {
     console.error('[E2E Harness Fatal Error]', err);
     results.push({

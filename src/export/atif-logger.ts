@@ -3,9 +3,11 @@
  * Conforms to docs/specs/atif_specification.md#2 and src/types/atif.ts
  */
 
-import { AtifOutcome, AtifStage, AtifStep, AtifTrajectory } from '../types/atif';
+import { AtifStage, AtifStep, AtifTrajectory } from '../types/atif';
 import { HarvestedContext } from '../types/harvester';
-import { ModelProviderConfig, ProviderType } from '../types/models';
+import { ProviderType } from '../types/models';
+import { QualityFlag, ReviewMode } from '../types/agent';
+import { VerificationDiagnostic } from '../types/verification';
 
 export class AtifTrajectoryLogger {
   private trajectory: AtifTrajectory;
@@ -19,7 +21,8 @@ export class AtifTrajectoryLogger {
     modelName: string = 'gemini-nano',
     isLocal: boolean = true,
     temperature: number = 0.2,
-    baseUrl: string | null = null
+    baseUrl: string | null = null,
+    visionSupported: boolean = false
   ) {
     this.startTime = Date.now();
     const sessionId = `simit-traj-${new Date().toISOString().replace(/[:.]/g, '-')}-${Math.random().toString(36).slice(2, 8)}`;
@@ -44,7 +47,8 @@ export class AtifTrajectoryLogger {
         model_name: modelName,
         is_local: isLocal,
         temperature,
-        base_url: baseUrl
+        base_url: baseUrl,
+        vision_supported: visionSupported
       },
       harvested_context: harvestedContext,
       trajectory: [],
@@ -71,7 +75,10 @@ export class AtifTrajectoryLogger {
     output?: Record<string, any>,
     durationMs?: number,
     details?: Record<string, any>,
-    status?: string
+    status?: string,
+    diagnostics?: VerificationDiagnostic[],
+    reviewMode?: ReviewMode,
+    capturedFramesCount?: number
   ): AtifStep {
     this.stepCounter += 1;
     if (stage === 'AUTO_REPAIR' || stage === 'INTERACTIVE_REPAIR' || stage === 'REVISION_SYNTHESIS') {
@@ -89,14 +96,22 @@ export class AtifTrajectoryLogger {
       input,
       output,
       details,
-      snapshot_url: snapshotUrl
+      snapshot_url: snapshotUrl,
+      captured_frames_count: capturedFramesCount ?? output?.captured_frames_count,
+      diagnostics,
+      review_mode: reviewMode
     };
 
     this.trajectory.trajectory.push(step);
     return step;
   }
 
-  complete(success: boolean, finalCode?: string): AtifTrajectory {
+  complete(
+    success: boolean,
+    finalCode?: string,
+    qualityFlagsOrOptions?: QualityFlag[] | { qualityFlags?: QualityFlag[]; diagnosticsCount?: number },
+    diagnosticsCount?: number
+  ): AtifTrajectory {
     const endTime = Date.now();
     this.trajectory.timestamp_end = new Date(endTime).toISOString();
 
@@ -113,13 +128,22 @@ export class AtifTrajectoryLogger {
       finalCodeHash = `hash:${Math.abs(hash).toString(16)}`;
     }
 
+    const resolvedFlags = Array.isArray(qualityFlagsOrOptions)
+      ? qualityFlagsOrOptions
+      : qualityFlagsOrOptions?.qualityFlags || [];
+    const resolvedDiagCount = Array.isArray(qualityFlagsOrOptions)
+      ? (diagnosticsCount ?? 0)
+      : (qualityFlagsOrOptions?.diagnosticsCount ?? diagnosticsCount ?? 0);
+
     this.trajectory.outcome = {
       success,
       first_pass_success: firstPass,
       repairs_needed: repairs,
       total_duration_ms: endTime - this.startTime,
       final_code_hash: finalCodeHash,
-      final_code: finalCode
+      final_code: finalCode,
+      quality_flags: resolvedFlags,
+      diagnostics_count: resolvedDiagCount
     };
 
     return this.trajectory;

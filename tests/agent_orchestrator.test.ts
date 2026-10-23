@@ -551,13 +551,514 @@ delegate_to_coder({
       });
 
       expect(result.success).toBe(true);
+      // Architect call must include enableThinking: true and thinkingBudgetTokens: 4096
+      expect((capturedPrompts[0] as any).enableThinking).toBe(true);
+      expect((capturedPrompts[0] as any).thinkingBudgetTokens).toBe(4096);
+      expect((capturedPrompts[0] as any).maxTokens).toBe(8192);
       // Architect prompt should have width = 620px, height = 840px
       expect(capturedPrompts[0].systemPrompt).toContain('Container width: 620px, height: 840px');
-      // Coder prompt should have VIEWPORT: width = 620px, height = 840px
+      // Coder prompt should have VIEWPORT: width = 620px, height = 840px and SOURCE CONCEPT
       expect(capturedPrompts[1].systemPrompt).toContain('### VIEWPORT: width = 620px, height = 840px.');
+      expect(capturedPrompts[1].userPrompt).toContain('### SOURCE CONCEPT:');
       // Context should also have been updated with the resolved viewport
       expect(contextWithoutViewport.viewport).toEqual(customViewport);
     });
   });
+
+  describe('A7: Multimodal Image Wire Attachment in Vision Review', () => {
+    it('attaches raster image frames (from frame.image and frame.dataUrl) to images payload when provider supports vision', async () => {
+      let capturedReviewPayload: any = null;
+      const sampleBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+      const mockRunner = async (req: PreFlightTestRequest): Promise<PreFlightTestResponse> => {
+        return {
+          type: 'PREFLIGHT_TEST_RESPONSE',
+          requestId: req.requestId,
+          status: 'ok',
+          validatedCode: req.rawCode,
+          parameters: [{ id: 'k', label: 'Rate', type: 'slider', min: 0, max: 10, step: 1, default: 1 }],
+          snapshotUrl: `data:image/png;base64,${sampleBase64}`,
+          report: {
+            status: 'pass',
+            diagnostics: [],
+            runtimeErrors: [],
+            parameters: [{ id: 'k', label: 'Rate', type: 'slider', min: 0, max: 10, step: 1, default: 1 }],
+            title: 'Test Sim',
+            description: 'Test description',
+            durationMs: 120,
+            frames: [
+              {
+                phase: 'defaults',
+                width: 380,
+                height: 456,
+                image: {
+                  mimeType: 'image/png',
+                  base64Data: sampleBase64,
+                  label: 'frame:defaults'
+                }
+              },
+              {
+                phase: 'max',
+                width: 380,
+                height: 456,
+                dataUrl: `data:image/png;base64,${sampleBase64}`
+              } as any
+            ]
+          }
+        };
+      };
+
+      const mockProvider: IModelProvider = {
+        type: 'google-gemini',
+        isLocal: false,
+        isAvailable: async () => true,
+        supportsVision: () => true,
+        generateSimulation: vi.fn().mockImplementation(async (payload) => {
+          if (payload.systemPrompt.includes('Epistemic Architect') && !payload.userPrompt.includes('SUBMITTED SIMULATION CODE')) {
+            return {
+              rawCode: `delegate_to_coder({
+                "title": "Vision Model",
+                "description": "Visual test",
+                "visualPlan": "Canvas render",
+                "mathFormulation": "y = x",
+                "parametersSpec": [{ "id": "k", "label": "Rate", "type": "slider", "default": 1 }]
+              })`
+            };
+          } else if (payload.systemPrompt.includes('Simulation Coder')) {
+            return {
+              rawCode: '<simulation_code>export default { init(){}, update(){} };</simulation_code>'
+            };
+          } else {
+            capturedReviewPayload = payload;
+            return { rawCode: JSON.stringify({ approved: true, critique: 'Visual verified' }) };
+          }
+        })
+      };
+
+      const result = await executeAutonomousSimulationLoop({
+        context: mockContext,
+        provider: mockProvider,
+        testRunner: mockRunner
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.reviewMode).toBe('multimodal');
+      expect(capturedReviewPayload).toBeDefined();
+      expect(capturedReviewPayload.images).toBeDefined();
+      expect(capturedReviewPayload.images.length).toBe(2);
+      expect(capturedReviewPayload.images[0].mimeType).toBe('image/png');
+      expect(capturedReviewPayload.images[0].label).toBe('Frame: defaults');
+      expect(capturedReviewPayload.images[0].base64Data).toBe(sampleBase64);
+      expect(capturedReviewPayload.images[1].label).toBe('Frame: max');
+    });
+  });
+
+  describe('A8: Code Patching Revision Protocol', () => {
+    it('supplies previous code and diagnostic findings to Coder on revision turn', async () => {
+      let turn2CoderPrompt: string | undefined;
+      let turnCount = 0;
+
+      const mockRunner = async (req: PreFlightTestRequest): Promise<PreFlightTestResponse> => {
+        turnCount++;
+        if (turnCount === 1) {
+          return {
+            type: 'PREFLIGHT_TEST_RESPONSE',
+            requestId: req.requestId,
+            status: 'error',
+            errorMessage: 'TypeError: undefined is not a function at eval:14:2',
+            errorStack: 'TypeError: undefined is not a function\n    at eval:14:2',
+            report: {
+              status: 'fail',
+              diagnostics: [
+                {
+                  code: 'RUNTIME_EXCEPTION',
+                  severity: 'error',
+                  message: 'TypeError: undefined is not a function at eval:14:2',
+                  phase: 'init',
+                  evidence: { stack: 'TypeError at eval:14:2', lineno: 14, colno: 2 }
+                }
+              ],
+              runtimeErrors: [
+                {
+                  phase: 'init',
+                  message: 'TypeError: undefined is not a function at eval:14:2',
+                  lineno: 14,
+                  colno: 2,
+                  stack: 'TypeError: undefined is not a function\n    at eval:14:2'
+                }
+              ],
+              frames: [],
+              parameters: [],
+              title: 'Crash Sim',
+              description: 'Crashes on init',
+              durationMs: 50
+            }
+          };
+        }
+        return {
+          type: 'PREFLIGHT_TEST_RESPONSE',
+          requestId: req.requestId,
+          status: 'ok',
+          validatedCode: req.rawCode,
+          parameters: [{ id: 'k', label: 'Rate', type: 'slider', min: 0, max: 10, step: 1, default: 1 }]
+        };
+      };
+
+      const mockProvider: IModelProvider = {
+        type: 'anthropic',
+        isLocal: false,
+        isAvailable: async () => true,
+        generateSimulation: vi.fn().mockImplementation(async (payload) => {
+          if (payload.systemPrompt.includes('Epistemic Architect') && !payload.userPrompt.includes('SUBMITTED SIMULATION CODE')) {
+            return {
+              rawCode: `delegate_to_coder({
+                "title": "Patching Model",
+                "description": "Needs patch",
+                "visualPlan": "Dynamic canvas",
+                "mathFormulation": "y = x",
+                "parametersSpec": [{ "id": "k", "label": "Rate", "type": "slider", "default": 1 }]
+              })`
+            };
+          } else if (payload.systemPrompt.includes('Simulation Coder')) {
+            if (!turn2CoderPrompt && payload.userPrompt.includes('PREVIOUS SIMULATION CODE')) {
+              turn2CoderPrompt = payload.userPrompt;
+            }
+            return {
+              rawCode: '<simulation_code>export default { init(){ /* patched */ }, update(){} };</simulation_code>'
+            };
+          } else {
+            return { rawCode: JSON.stringify({ approved: true, critique: 'Patched successfully' }) };
+          }
+        })
+      };
+
+      const result = await executeAutonomousSimulationLoop({
+        context: mockContext,
+        provider: mockProvider,
+        testRunner: mockRunner,
+        maxIterations: 2
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.iterations).toBe(2);
+      expect(turn2CoderPrompt).toBeDefined();
+      expect(turn2CoderPrompt).toContain('### PREVIOUS SIMULATION CODE (TO BE PATCHED):');
+      expect(turn2CoderPrompt).toContain('<previous_code>');
+      expect(turn2CoderPrompt).toContain('### VERIFICATION HARNESS FINDINGS:');
+      expect(turn2CoderPrompt).toContain('[ERROR RUNTIME_EXCEPTION @init]');
+      expect(turn2CoderPrompt).toContain('TypeError: undefined is not a function');
+    });
+  });
+
+  describe('A9: Loud Degradation Quality Flags', () => {
+    it('emits REVIEW_UNPARSEABLE flag and does not silently approve when review response is not JSON', async () => {
+      const mockRunner = async (req: PreFlightTestRequest): Promise<PreFlightTestResponse> => {
+        return {
+          type: 'PREFLIGHT_TEST_RESPONSE',
+          requestId: req.requestId,
+          status: 'ok',
+          validatedCode: req.rawCode,
+          parameters: [{ id: 'k', label: 'Rate', type: 'slider', min: 0, max: 10, step: 1, default: 1 }]
+        };
+      };
+
+      const mockProvider: IModelProvider = {
+        type: 'google-gemini',
+        isLocal: false,
+        isAvailable: async () => true,
+        generateSimulation: vi.fn()
+          .mockResolvedValueOnce({
+            rawCode: `delegate_to_coder({
+              "title": "Quality Model",
+              "description": "Testing flags",
+              "visualPlan": "Canvas",
+              "mathFormulation": "y = x",
+              "parametersSpec": [{ "id": "k", "label": "Rate", "type": "slider", "default": 1 }]
+            })`
+          })
+          .mockResolvedValueOnce({ rawCode: '<simulation_code>export default { init(){}, update(){} };</simulation_code>' })
+          .mockResolvedValueOnce({ rawCode: 'Looks great! Everything fits on the screen and works smoothly.' })
+          .mockResolvedValueOnce({ rawCode: '<simulation_code>export default { init(){}, update(){} };</simulation_code>' })
+          .mockResolvedValueOnce({ rawCode: JSON.stringify({ approved: true, critique: 'Valid JSON review' }) })
+      };
+
+      const result = await executeAutonomousSimulationLoop({
+        context: mockContext,
+        provider: mockProvider,
+        testRunner: mockRunner,
+        maxIterations: 2
+      });
+
+      expect(result.qualityFlags).toContain('REVIEW_UNPARSEABLE');
+      expect(result.iterations).toBe(2);
+    });
+
+    it('emits FALLBACK_PLAN flag when Architect deliberation fails', async () => {
+      const mockRunner = async (req: PreFlightTestRequest): Promise<PreFlightTestResponse> => {
+        return {
+          type: 'PREFLIGHT_TEST_RESPONSE',
+          requestId: req.requestId,
+          status: 'ok',
+          validatedCode: req.rawCode,
+          parameters: [{ id: 'rate', label: 'Rate', type: 'slider', min: 0.1, max: 5, step: 0.1, default: 1 }]
+        };
+      };
+
+      const mockProvider: IModelProvider = {
+        type: 'google-gemini',
+        isLocal: false,
+        isAvailable: async () => true,
+        generateSimulation: vi.fn()
+          .mockRejectedValueOnce(new Error('Quota exceeded'))
+          .mockResolvedValueOnce({ rawCode: '<simulation_code>export default { init(){}, update(){} };</simulation_code>' })
+          .mockResolvedValueOnce({ rawCode: JSON.stringify({ approved: true }) })
+      };
+
+      const result = await executeAutonomousSimulationLoop({
+        context: mockContext,
+        provider: mockProvider,
+        testRunner: mockRunner,
+        maxIterations: 1
+      });
+
+      expect(result.qualityFlags).toContain('FALLBACK_PLAN');
+    });
+
+    it('emits VERIFICATION_WARNINGS flag when diagnostics contain warnings', async () => {
+      const mockRunner = async (req: PreFlightTestRequest): Promise<PreFlightTestResponse> => {
+        return {
+          type: 'PREFLIGHT_TEST_RESPONSE',
+          requestId: req.requestId,
+          status: 'ok',
+          validatedCode: req.rawCode,
+          parameters: [{ id: 'k', label: 'Rate', type: 'slider', min: 0, max: 10, step: 1, default: 1 }],
+          report: {
+            status: 'pass',
+            diagnostics: [
+              {
+                code: 'NON_FINITE_TEXT',
+                severity: 'warning',
+                message: 'Canvas rendered NaN readout during min sweep phase',
+                phase: 'min'
+              }
+            ],
+            runtimeErrors: [],
+            frames: [],
+            parameters: [{ id: 'k', label: 'Rate', type: 'slider', min: 0, max: 10, step: 1, default: 1 }],
+            title: 'Warning Sim',
+            description: 'Has warning',
+            durationMs: 80
+          }
+        };
+      };
+
+      const mockProvider: IModelProvider = {
+        type: 'google-gemini',
+        isLocal: false,
+        isAvailable: async () => true,
+        generateSimulation: vi.fn()
+          .mockResolvedValueOnce({
+            rawCode: `delegate_to_coder({
+              "title": "Warning Model",
+              "description": "Has warning",
+              "visualPlan": "Canvas",
+              "mathFormulation": "y = x",
+              "parametersSpec": [{ "id": "k", "label": "Rate", "type": "slider", "default": 1 }]
+            })`
+          })
+          .mockResolvedValueOnce({ rawCode: '<simulation_code>export default { init(){}, update(){} };</simulation_code>' })
+          .mockResolvedValueOnce({ rawCode: JSON.stringify({ approved: true }) })
+      };
+
+      const result = await executeAutonomousSimulationLoop({
+        context: mockContext,
+        provider: mockProvider,
+        testRunner: mockRunner,
+        maxIterations: 1
+      });
+
+      expect(result.qualityFlags).toContain('VERIFICATION_WARNINGS');
+      expect(result.diagnostics).toBeDefined();
+      expect(result.diagnostics?.length).toBe(1);
+    });
+  });
+
+  describe('A10: Pedagogy Phase in Architect & Explanation Normalization (Items 8, 9, 10)', () => {
+    it('instructs Architect to perform Pedagogy Phase before visual design and enforce live parameter-driven tour rule', () => {
+      const archSystem = buildArchitectSystemPrompt({ width: 380, height: 500 });
+      expect(archSystem).toContain('### PEDAGOGY PHASE (MANDATORY BEFORE VISUAL DESIGN):');
+      expect(archSystem).toContain('coreInsight');
+      expect(archSystem).toContain('prerequisites');
+      expect(archSystem).toContain('misconception');
+      expect(archSystem).toContain('ahaExperiment');
+      expect(archSystem).toContain('symbolMap');
+      expect(archSystem).toContain(
+        'Guided tours (`explanation.tour`) must drive the live simulation model via parameter updates (`params` passed to `update(params)`); never hardcode static frames or disconnected slides.'
+      );
+      expect(DELEGATE_TO_CODER_TOOL.parameters.properties.pedagogy).toBeDefined();
+      expect(DELEGATE_TO_CODER_TOOL.parameters.properties.explanation).toBeDefined();
+    });
+
+    it('preserves and normalizes pedagogy and explanation in normalizeCoderPlan and synthesizes defaults when explanation is omitted', () => {
+      const explicitPlan = normalizeCoderPlan({
+        title: 'Damped Oscillator',
+        description: 'Mass-spring-damper',
+        visualPlan: 'Canvas trace',
+        mathFormulation: 'm x\'\' + c x\' + k x = 0',
+        parametersSpec: [
+          { id: 'zeta', label: 'Damping (ζ)', type: 'slider', min: 0, max: 2, step: 0.05, default: 0.2 }
+        ],
+        pedagogy: {
+          coreInsight: 'Critical damping (ζ=1) achieves fastest equilibrium return without overshoot.',
+          prerequisites: ['Hooke\'s Law'],
+          misconception: 'More damping always slows settling time.',
+          ahaExperiment: 'Sweep ζ from 0.15 to 1.0 and compare envelope decay.',
+          symbolMap: [
+            { symbol: 'ζ', meaning: 'Damping ratio', visualElement: 'Envelope decay rate (#f43f5e)' }
+          ]
+        },
+        explanation: {
+          insight: 'Critical damping (ζ=1) achieves fastest equilibrium return without overshoot.',
+          legend: [{ symbol: 'ζ', meaning: 'Damping ratio', color: '#f43f5e' }],
+          tour: [
+            { title: 'Underdamped', caption: 'Oscillates at ζ=0.15', params: { zeta: 0.15 } },
+            { title: 'Critical', caption: 'No overshoot at ζ=1.0', params: { zeta: 1.0 } }
+          ]
+        }
+      });
+
+      expect(explicitPlan.pedagogy?.coreInsight).toContain('Critical damping');
+      expect(explicitPlan.pedagogy?.symbolMap?.length).toBe(1);
+      expect(explicitPlan.explanation?.insight).toContain('Critical damping');
+      expect(explicitPlan.explanation?.legend?.length).toBe(1);
+      expect(explicitPlan.explanation?.tour?.length).toBe(2);
+
+      // When explanation is omitted, normalizeCoderPlan synthesizes a valid explanation from pedagogy + parametersSpec
+      const synthesizedPlan = normalizeCoderPlan({
+        title: 'Wave Dispersion',
+        description: 'Packet spreading',
+        visualPlan: '1D canvas',
+        mathFormulation: 'omega(k) = alpha k^2',
+        parametersSpec: [
+          { id: 'alpha', label: 'Dispersion (α)', type: 'slider', min: 0.1, max: 4.0, step: 0.1, default: 1.0 }
+        ],
+        pedagogy: {
+          coreInsight: 'Higher dispersion α spreads wavepackets faster over time.',
+          prerequisites: ['Fourier superposition'],
+          misconception: 'All wave frequencies travel at the same speed.',
+          ahaExperiment: 'Increase α to 4.0 to see rapid packet broadening.',
+          symbolMap: [{ symbol: 'α', meaning: 'Dispersion coefficient', visualElement: 'Cyan envelope' }]
+        }
+      });
+
+      expect(synthesizedPlan.explanation).toBeDefined();
+      expect(synthesizedPlan.explanation?.insight).toBe('Higher dispersion α spreads wavepackets faster over time.');
+      expect(synthesizedPlan.explanation?.legend?.[0].symbol).toBe('α');
+      expect(synthesizedPlan.explanation?.tour?.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe('A11: Reviewer Pedagogical & Comprehension Criteria (Item 11)', () => {
+    it('evaluates Newcomer Element Identifiability, Default Insight Visibility, Source Symbol Consistency, and Live Parameter-Driven Tour', () => {
+      const plan = normalizeCoderPlan({
+        title: 'Damped Oscillator',
+        description: 'Mass-spring-damper',
+        visualPlan: 'Canvas trace',
+        mathFormulation: 'm x\'\' + c x\' + k x = 0',
+        parametersSpec: [
+          { id: 'zeta', label: 'Damping (ζ)', type: 'slider', min: 0, max: 2, step: 0.05, default: 0.2 }
+        ],
+        pedagogy: {
+          coreInsight: 'Critical damping (ζ=1) achieves fastest equilibrium return without overshoot.',
+          prerequisites: ['Hooke\'s Law'],
+          misconception: 'More damping always slows settling time.',
+          ahaExperiment: 'Sweep ζ from 0.15 to 1.0 and compare envelope decay.',
+          symbolMap: [
+            { symbol: 'x(t)', meaning: 'Displacement', visualElement: 'Cyan curve (#38bdf8)' }
+          ]
+        }
+      });
+
+      const reviewPrompt = buildArchitectReviewPrompt(
+        plan,
+        {
+          status: 'ok',
+          executionTimeMs: 42,
+          logs: [],
+          parameters: []
+        },
+        'export default { title: "Damped Oscillator", explanation: { insight: "...", legend: [], tour: [] }, init(){}, update(){} };'
+      );
+
+      expect(reviewPrompt).toContain('### REVIEW CRITERIA:');
+      expect(reviewPrompt).toContain('Newcomer Element Identifiability');
+      expect(reviewPrompt).toContain('Default Insight Visibility');
+      expect(reviewPrompt).toContain('Source Symbol Consistency');
+      expect(reviewPrompt).toContain('Live Parameter-Driven Tour');
+      expect(reviewPrompt).toContain('Critical damping (ζ=1)');
+      expect(reviewPrompt).toContain('x(t): Displacement -> Cyan curve (#38bdf8)');
+    });
+  });
+
+  describe('A12: Coder Full Source Context, Equations, DOM Context & Pedagogy (Item 12)', () => {
+    it('includes full selectedText, extracted equations, DOM context, pedagogy, and explanation blueprint in buildCoderUserPrompt', () => {
+      const richContext: HarvestedContext = {
+        ...mockContext,
+        domContext: {
+          nearestHeading: 'Section 4.2: Viscous Damping Regimes',
+          headingLevel: 'h2',
+          caption: 'Figure 4: Underdamped vs Critically Damped response curves.',
+          paragraphSnippet: 'When the damping ratio zeta equals 1, the characteristic equation has a repeated real root.'
+        }
+      };
+
+      const plan = normalizeCoderPlan({
+        title: 'Damped Harmonic Oscillator',
+        description: 'Interactive regime explorer',
+        visualPlan: 'Dual canvas with spring-mass and x(t) curve',
+        mathFormulation: 'm \\ddot{x} + c \\dot{x} + k x = 0',
+        parametersSpec: [
+          { id: 'zeta', label: 'Damping Ratio (ζ)', type: 'slider', min: 0, max: 2, step: 0.05, default: 0.2 }
+        ],
+        pedagogy: {
+          coreInsight: 'At ζ = 1, critical damping returns the mass to equilibrium fastest without oscillating.',
+          prerequisites: ['Second-order linear ODEs'],
+          misconception: 'Increasing damping always makes the system return to zero faster.',
+          ahaExperiment: 'Compare ζ = 0.2 (ringing) against ζ = 1.0 (critical) and ζ = 1.8 (sluggish).',
+          symbolMap: [
+            { symbol: 'x(t)', meaning: 'Displacement', visualElement: 'Cyan trace (#38bdf8)' },
+            { symbol: '±e^{-ζω₀t}', meaning: 'Decay envelope', visualElement: 'Dashed rose curve (#f43f5e)' }
+          ]
+        }
+      });
+
+      const coderUserPrompt = buildCoderUserPrompt(plan, undefined, richContext);
+
+      // 1. Selected text & equations
+      expect(coderUserPrompt).toContain('### SOURCE CONCEPT:');
+      expect(coderUserPrompt).toContain(richContext.selection.selectedText);
+      expect(coderUserPrompt).toContain('### SOURCE EQUATIONS:');
+      expect(coderUserPrompt).toContain('m \\ddot{x} + c \\dot{x} + k x = 0');
+
+      // 2. Surrounding DOM context
+      expect(coderUserPrompt).toContain('### SOURCE DOM CONTEXT:');
+      expect(coderUserPrompt).toContain('Section 4.2: Viscous Damping Regimes');
+      expect(coderUserPrompt).toContain('Figure 4: Underdamped vs Critically Damped response curves.');
+      expect(coderUserPrompt).toContain('When the damping ratio zeta equals 1');
+
+      // 3. Architect Pedagogy & Symbol Map
+      expect(coderUserPrompt).toContain('### PEDAGOGY & EPISTEMIC GOALS:');
+      expect(coderUserPrompt).toContain('At ζ = 1, critical damping returns the mass to equilibrium fastest');
+      expect(coderUserPrompt).toContain('Increasing damping always makes the system return to zero faster.');
+      expect(coderUserPrompt).toContain('x(t): Displacement -> Rendered as: Cyan trace (#38bdf8)');
+
+      // 4. Required Explanation & Guided Tour Blueprint
+      expect(coderUserPrompt).toContain('### EXPLANATION & GUIDED TOUR BLUEPRINT');
+      expect(coderUserPrompt).toContain('"insight"');
+      expect(coderUserPrompt).toContain('"legend"');
+      expect(coderUserPrompt).toContain('"tour"');
+    });
+  });
 });
+
 

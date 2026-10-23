@@ -10,7 +10,13 @@
  */
 
 import { PreFlightTestRequest, PreFlightTestResponse } from '../types/ipc';
-import { ParameterDefinition, ParameterState, SimModule } from '../types/simulation';
+import { ParameterDefinition, ParameterState, SimModule, StageGeometry } from '../types/simulation';
+import { computeStageGeometry, DEFAULT_HOST_LAYOUT } from './module-contract';
+import {
+  applyStageGeometryToContainer,
+  formatDiagnosticsForCoder,
+  verifySimulationInStage
+} from './verification';
 
 export const PREFLIGHT_TIMEOUT_MS = 100;
 
@@ -445,6 +451,48 @@ export async function runPreFlightSmokeTest(
   }
   container.id = 'sim-root';
 
+  // Full multi-phase verification pipeline when request.verification is specified
+  if (request.verification) {
+    const verifyTimeoutMs = request.verification.timeoutMs ?? request.timeoutMs ?? 2500;
+    const report = await verifySimulationInStage(
+      container,
+      code,
+      { ...request.verification, timeoutMs: verifyTimeoutMs },
+      globals as Record<string, any> | undefined
+    );
+    const frames = report.frames || [];
+    const defaultFrame = frames.find(f => f.phase === 'defaults') || frames[0];
+    const snapshotUrl =
+      defaultFrame?.dataUrl ||
+      (defaultFrame?.image
+        ? `data:${defaultFrame.image.mimeType};base64,${defaultFrame.image.base64Data}`
+        : undefined);
+
+    if (report.status === 'fail') {
+      const firstErr = report.runtimeErrors[0];
+      const diagMessage = formatDiagnosticsForCoder(report) || firstErr?.message || 'Verification failed';
+      return {
+        type: 'PREFLIGHT_TEST_RESPONSE',
+        requestId,
+        status: 'error',
+        errorMessage: diagMessage,
+        errorStack: firstErr?.stack,
+        report
+      };
+    }
+
+    return {
+      type: 'PREFLIGHT_TEST_RESPONSE',
+      requestId,
+      status: 'ok',
+      validatedCode: code,
+      parameters: report.parameters,
+      ...(report.explanation ? { explanation: report.explanation } : {}),
+      snapshotUrl,
+      report
+    };
+  }
+
   // Timeout guard promise
   let timerId: any;
   const timeoutPromise = new Promise<never>((_, reject) => {
@@ -567,10 +615,16 @@ export async function runPreFlightSmokeTest(
       }
 
       const parameters: ParameterDefinition[] = Array.isArray(simModule.parameters) ? simModule.parameters : [];
+      const stage: StageGeometry = computeStageGeometry(
+        DEFAULT_HOST_LAYOUT,
+        parameters.length,
+        typeof window !== 'undefined' && window.devicePixelRatio ? window.devicePixelRatio : 1
+      );
+      applyStageGeometryToContainer(container, stage);
 
-      // 1. Smoke test: Execute init() with defaults
+      // 1. Smoke test: Execute init() with defaults and stage geometry
       const defaults = extractDefaultParameters(parameters);
-      await Promise.resolve(simModule.init(container, defaults));
+      await Promise.resolve(simModule.init(container, defaults, stage));
 
       // 2. Smoke test: Execute update() with defaults
       await Promise.resolve(simModule.update(defaults));
@@ -608,6 +662,7 @@ export async function runPreFlightSmokeTest(
         status: 'ok',
         validatedCode: code,
         parameters,
+        ...(simModule.explanation ? { explanation: simModule.explanation } : {}),
         snapshotUrl
       };
     } catch (err: any) {

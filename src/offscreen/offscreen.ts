@@ -13,6 +13,11 @@ import {
   PromptApiGenerateResponse
 } from '../types/ipc';
 import { ChromePromptApiProvider } from '../providers/prompt-api';
+import {
+  assembleVerificationReport,
+  formatDiagnosticsForCoder,
+  makeDiagnostic
+} from '../runtime/verification';
 
 const promptProvider = new ChromePromptApiProvider();
 
@@ -48,7 +53,7 @@ function ensureSandboxFrameReady(): Promise<void> {
 }
 
 /**
- * Executes simulation pre-flight smoke test inside the sandboxed iframe (sandbox.html),
+ * Executes simulation pre-flight smoke test or full verification inside the sandboxed iframe (sandbox.html),
  * which is granted 'unsafe-eval' in manifest.json CSP.
  */
 function executeSandboxedSmokeTest(testMsg: PreFlightTestRequest): Promise<PreFlightTestResponse> {
@@ -64,6 +69,11 @@ function executeSandboxedSmokeTest(testMsg: PreFlightTestRequest): Promise<PreFl
       return;
     }
 
+    if (testMsg.verification?.viewport) {
+      frame.style.width = `${testMsg.verification.viewport.width}px`;
+      frame.style.height = `${testMsg.verification.viewport.height}px`;
+    }
+
     let timeoutId: any;
     const cleanup = () => {
       clearTimeout(timeoutId);
@@ -74,7 +84,39 @@ function executeSandboxedSmokeTest(testMsg: PreFlightTestRequest): Promise<PreFl
       const data = event.data;
       if (!data || !data.type) return;
 
-      if (data.type === 'SANDBOX_SIMULATION_READY') {
+      if (data.type === 'SANDBOX_VERIFICATION_REPORT') {
+        if (data.requestId && data.requestId !== testMsg.requestId) return;
+        cleanup();
+        const report = data.report;
+        const isPass = report.status === 'pass';
+        const snapshotUrl = report.frames?.[0]?.image
+          ? `data:${report.frames[0].image.mimeType};base64,${report.frames[0].image.base64Data}`
+          : undefined;
+        if (isPass) {
+          resolve({
+            type: 'PREFLIGHT_TEST_RESPONSE',
+            requestId: testMsg.requestId,
+            status: 'ok',
+            validatedCode: testMsg.rawCode,
+            parameters: report.parameters || [],
+            snapshotUrl,
+            report
+          });
+        } else {
+          const formattedDiagnostics = formatDiagnosticsForCoder(report);
+          resolve({
+            type: 'PREFLIGHT_TEST_RESPONSE',
+            requestId: testMsg.requestId,
+            status: 'error',
+            errorMessage:
+              formattedDiagnostics ||
+              report.diagnostics.map((d: any) => `[${d.code}] ${d.message}`).join('\n') ||
+              'Verification failed',
+            errorStack: report.runtimeErrors?.[0]?.stack,
+            report
+          });
+        }
+      } else if (data.type === 'SANDBOX_SIMULATION_READY') {
         cleanup();
         resolve({
           type: 'PREFLIGHT_TEST_RESPONSE',
@@ -85,6 +127,10 @@ function executeSandboxedSmokeTest(testMsg: PreFlightTestRequest): Promise<PreFl
           snapshotUrl: data.snapshotUrl
         });
       } else if (data.type === 'SANDBOX_RUNTIME_ERROR') {
+        if (testMsg.verification) {
+          // During SANDBOX_VERIFY_SIMULATION, runtime errors are collected into SANDBOX_VERIFICATION_REPORT
+          return;
+        }
         cleanup();
         resolve({
           type: 'PREFLIGHT_TEST_RESPONSE',
@@ -98,23 +144,49 @@ function executeSandboxedSmokeTest(testMsg: PreFlightTestRequest): Promise<PreFl
 
     window.addEventListener('message', handleSandboxMessage);
 
-    // Timeout guard (2500ms max for headless preflight)
+    const maxWaitMs = testMsg.verification?.timeoutMs || testMsg.timeoutMs || 4000;
     timeoutId = setTimeout(() => {
       cleanup();
+      const timeoutMsg = 'TimeoutError: Sandboxed pre-flight execution exceeded time limit (possible infinite loop).';
+      const timeoutReport = testMsg.verification
+        ? assembleVerificationReport({
+            diagnostics: [
+              makeDiagnostic('TIMEOUT', timeoutMsg, {
+                phase: 'soak',
+                evidence: { timeoutMs: maxWaitMs }
+              })
+            ],
+            runtimeErrors: [],
+            frames: [],
+            parameters: [],
+            title: 'Untitled Simulation',
+            description: '',
+            durationMs: maxWaitMs
+          })
+        : undefined;
       resolve({
         type: 'PREFLIGHT_TEST_RESPONSE',
         requestId: testMsg.requestId,
         status: 'error',
-        errorMessage: 'TimeoutError: Sandboxed pre-flight execution exceeded time limit (possible infinite loop).'
+        errorMessage: timeoutMsg,
+        report: timeoutReport
       });
-    }, testMsg.timeoutMs || 2500);
+    }, maxWaitMs);
 
-    // Dispatch code to sandboxed iframe where 'unsafe-eval' is permitted
-    frame.contentWindow.postMessage({
-      type: 'SANDBOX_INIT_SIMULATION',
-      code: testMsg.rawCode,
-      captureSnapshot: testMsg.captureSnapshot ?? true
-    }, '*');
+    if (testMsg.verification) {
+      frame.contentWindow.postMessage({
+        type: 'SANDBOX_VERIFY_SIMULATION',
+        requestId: testMsg.requestId,
+        code: testMsg.rawCode,
+        options: testMsg.verification
+      }, '*');
+    } else {
+      frame.contentWindow.postMessage({
+        type: 'SANDBOX_INIT_SIMULATION',
+        code: testMsg.rawCode,
+        captureSnapshot: testMsg.captureSnapshot ?? true
+      }, '*');
+    }
   });
 }
 

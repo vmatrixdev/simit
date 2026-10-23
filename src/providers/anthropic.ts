@@ -5,6 +5,7 @@
 
 import { GenerationPromptPayload, GenerationResponse, IModelProvider, ProviderType } from '../types/models';
 import { extractSimulationTags } from '../runtime/preflight';
+import { toAnthropicContent } from './multimodal';
 
 export class AnthropicProvider implements IModelProvider {
   readonly type: ProviderType = 'anthropic';
@@ -40,6 +41,10 @@ export class AnthropicProvider implements IModelProvider {
     return true;
   }
 
+  supportsVision(): boolean {
+    return true;
+  }
+
   async generateSimulation(payload: GenerationPromptPayload): Promise<GenerationResponse> {
     if (!this.apiKey) {
       throw new Error('Anthropic API key is not configured.');
@@ -49,6 +54,8 @@ export class AnthropicProvider implements IModelProvider {
     const endpoint = `${this.baseUrl}/messages`;
     const shouldUseThinking = payload.enableThinking ?? this.enableThinking;
 
+    const userContent = toAnthropicContent(payload.userPrompt, payload.images);
+
     const body: Record<string, any> = {
       model: this.modelName,
       max_tokens: payload.maxTokens || (shouldUseThinking ? 6000 : 4096),
@@ -56,7 +63,7 @@ export class AnthropicProvider implements IModelProvider {
       messages: [
         {
           role: 'user',
-          content: payload.userPrompt
+          content: userContent
         }
       ]
     };

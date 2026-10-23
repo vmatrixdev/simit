@@ -131,46 +131,15 @@ export interface SandboxEvaluationResult {
 
 ## 5. Epistemic Architect & Coder Prompts (Decoupled Specialization)
 
-### 5.1 The Epistemic Architect System Prompt & Standard Tool Call
-The Architect has **complete creative freedom** over the declarative library suite (`Tweakpane`, `Canvas 2D`, `Anime.js`, `Cytoscape`, `KaTeX`, `Math.js`, `jStat`, `Matter.js`, `functionPlot`, `glMatrix`). It is explicitly forbidden from generating raw implementation code, and is NOT constrained by artificial `<simulation_blueprint>` tags or formulaic thinking templates:
-
-```markdown
-You are SimIt's Epistemic Architect, an elite interactive visualization designer (in the spirit of Bret Victor and 3Blue1Brown).
-Your mission is to invent a living, interactive, parameter-driven visual simulation for a given technical concept.
-
-### VIEWPORT DIMENSIONS:
-Container width: ${viewport.width}px, height: ${viewport.height}px.
-
-### DECLARATIVE LIBRARY SUITE (Available in Global Scope):
-- Tweakpane (v4): Zero-latency interactive sliders, toggles, buttons, and steppers.
-- Canvas 2D + anime.js: 60 FPS physics loops, particle dynamics, reactive tweening, direct pointer drag.
-- Cytoscape (v3): Interactive DAGs, topologies, state machines, consensus protocols.
-- KaTeX (v0.16): Dynamic mathematical notation and live numeric readouts.
-- Math.js (v12): Matrix math, vector dot products, projections.
-- jStat (v1.9): Probability distributions (Gaussian, Poisson, Beta).
-- Matter.js (v0.20): 2D rigid-body kinematics, collision bounds, springs.
-- functionPlot (v1): 2D Cartesian curves.
-- glMatrix (v3.4): Spatial projections and rotations.
-
-### ARCHITECTURAL FREEDOM & UNCONSTRAINED DELIBERATION:
-You have complete creative and epistemic freedom. Think however you want in natural text.
-Take as much reasoning space as needed to explore alternative visual metaphors, derive formulas, and determine what interactive dynamics will give the user genuine physical intuition.
-You do NOT need any special tags (no <simulation_blueprint> tags) or rigid bullet points for thinking.
-
-### TOOL CALL:
-When you have finalized your simulation design, invoke the standard tool `delegate_to_coder`:
-
-delegate_to_coder({
-  "title": "Simulation Title",
-  "description": "Concise 1-line epistemic summary",
-  "visualPlan": "Detailed mental model layout, coordinate system, and animation mechanism",
-  "mathFormulation": "Mathematical formulation or algorithm logic",
-  "parametersSpec": [
-    { "id": "paramId", "label": "Label", "type": "slider", "min": 0, "max": 10, "step": 0.1, "default": 2, "unit": "unit" }
-  ],
-  "directInteractionSpec": "Pointer dragging or tap interactions on canvas/nodes"
-})
-```
+### 5.1 The Epistemic Architect System Prompt, Pedagogy Phase & Standard Tool Call
+The Architect has **complete creative freedom** over the declarative library suite (`Tweakpane`, `Canvas 2D`, `Anime.js`, `Cytoscape`, `KaTeX`, `Math.js`, `jStat`, `Matter.js`, `functionPlot`, `glMatrix`). Before visual layout design, the Architect executes a **Pedagogy Phase** to ensure newcomer comprehension:
+1. **Core Insight (`coreInsight`)**: Single core takeaway in one plain-English sentence.
+2. **Prerequisites (`prerequisites`)**: 2–3 foundational concepts a newcomer must recognize on screen.
+3. **Target Misconception (`misconception`)**: Common misconception disproved by the visual dynamics.
+4. **Aha Experiment (`ahaExperiment`)**: Concrete "try this -> notice that" parameter manipulation that makes the insight click.
+5. **Source Symbol Legend (`symbolMap` & `explanation.legend`)**: Mapping of source variables/symbols (`symbol`, `meaning`, `color`) to visual elements.
+6. **Live Guided Tour (`explanation.tour`)**: A 2–4 step walkthrough where each step specifies `caption`, `params` overrides, optional `highlight`, `tryThis`, and `noticeThat`.
+   - **Invariant**: Guided tours (`explanation.tour`) must drive the live simulation model via parameter updates (`params` passed to `update(params)`); never hardcode static frames or disconnected slides.
 
 #### Standard Tool Specification (`DELEGATE_TO_CODER_TOOL`):
 ```typescript
@@ -202,79 +171,57 @@ export const DELEGATE_TO_CODER_TOOL = {
           required: ['id', 'label', 'type', 'default']
         }
       },
-      directInteractionSpec: { type: 'string', description: 'Direct canvas drag/tap/hover interaction dynamics' }
+      directInteractionSpec: { type: 'string', description: 'Direct canvas drag/tap/hover interaction dynamics' },
+      pedagogy: {
+        type: 'object',
+        description: 'Pedagogical blueprint for newcomer comprehension'
+      },
+      explanation: {
+        type: 'object',
+        description: 'Host-rendered explanation and live parameter-driven guided tour'
+      }
     },
     required: ['title', 'description', 'visualPlan', 'mathFormulation', 'parametersSpec']
   }
 };
 ```
 
-### 5.2 The Simulation Coder Sub-Agent System Prompt
-The Coder sub-agent receives the formal blueprint and specializes strictly in producing robust, self-contained ES module code:
+### 5.2 The Simulation Coder Sub-Agent System & User Prompts
+The Coder sub-agent receives:
+- The Architect's formal blueprint (`title`, `description`, `visualPlan`, `mathFormulation`, `parametersSpec`, `directInteractionSpec`, `pedagogy`, `explanation`)
+- The full harvested source context (`context.selection.selectedText`, `context.mathSnippets`, `context.domContext.nearestHeading`, `context.domContext.caption`, `context.domContext.paragraphSnippet`)
+- The single-source Simulation Module Contract (`buildModuleContractPromptSection`)
 
-```markdown
-You are SimIt's Simulation Coder, an expert visualization engineer.
-Your job is to translate the Architect's epistemic blueprint into an executable ES module adhering to SimIt's simEngine contract.
+### 5.3 The Multimodal Visual & Pedagogical Review Prompt & Revision Protocol
+When the sandbox evaluation completes, the Architect reviews the verified code, diagnostics, and rendered snapshot frames against 8 criteria (4 visual/technical + 4 pedagogical):
+1. **Legibility & Contrast**: Visual labels clear on dark background (`#090d16`).
+2. **Viewport Geometry**: Fits cleanly inside stage without clipping or letterbox borders.
+3. **Epistemic Truth**: Faithfully reflects the physical/mathematical model.
+4. **Control Usability**: Parameters responsive across boundary values.
+5. **Newcomer Element Identifiability**: Every visual element is identifiable via clear on-canvas labels or `explanation.legend`.
+6. **Default Insight Visibility**: Default parameter state immediately demonstrates `pedagogy.coreInsight` / `explanation.insight`.
+7. **Source Symbol Consistency**: Symbols on screen and in `explanation.legend` match the source equations and text.
+8. **Live Parameter-Driven Tour**: `explanation.tour` drives the live simulation model via real `params` updates passed to `update(params)` rather than static slides.
 
-### VIEWPORT: width = ${viewport.width}px, height = ${viewport.height}px.
-- FULL-BLEED: Fill the container 100% without letterboxing or black margins.
-- Canvas backing store must match container bounds.
-- All pre-loaded libraries (Tweakpane, Anime, Cytoscape, KaTeX, Math, jStat, Matter, functionPlot) are in the global scope.
-
-### OUTPUT CONTRACT:
-Output valid JavaScript starting with "export default {".
-Must include:
-- title, description, parameters array
-- init(container, params)
-- update(params)
-- destroy()
-
-Enclose code in <simulation_code>...</simulation_code>.
-```
-
-### 5.3 The Multimodal Visual Review Prompt
-When the sandbox evaluation produces a visual snapshot, the Architect inspects the raster image:
-
-```markdown
-You are reviewing the simulation rendered by the Coder sub-agent.
-Compare the test execution and visual output against your original plan.
-
-### ORIGINAL PLAN:
-Title: ${plan.title}
-Visual Plan: ${plan.visualPlan}
-Parameters: ${JSON.stringify(plan.parametersSpec.map(p => p.id))}
-
-### SANDBOX EVALUATION:
-Status: ${testResult.status}
-Execution Time: ${testResult.executionTimeMs}ms
-Console Logs: ${testResult.logs.join('\n')}
-${testResult.errorMessage ? `Error: ${testResult.errorMessage}` : ''}
-Visual Snapshot: [Rendered screenshot attached as multimodal image payload]
-
-### REVIEW CRITERIA:
-1. Legibility & Contrast: Are labels clear on dark background (#090d16)?
-2. Viewport Geometry: Does the visual fit cleanly without awkward clipping or giant black letterbox borders?
-3. Epistemic Truth: Does it faithfully reflect the physical/mathematical model?
-4. Control Usability: Are parameters responsive?
-
-### REQUIRED RESPONSE FORMAT:
-Return ONLY a JSON object:
-{
-  "approved": true or false,
-  "critique": "Brief assessment of visual layout and mechanics",
-  "direction": "If not approved, specific 1-2 sentence instruction to fix it"
-}
-```
+#### Revision Protocol & Code Patching:
+When revision is requested or runtime errors/diagnostics are caught:
+- The previous code MUST be fed back to the Coder agent inside `<previous_code>`.
+- Full stack traces, failed line/column numbers, and parameter singularity states are provided.
+- The Coder patches the existing implementation rather than generating a random variation from scratch.
+- If review parsing fails or errors occur, `approved: false` is triggered with `QualityFlag` warnings attached (never silent fallback).
 
 ---
 
 ## 6. Shared TypeScript Domain Contracts
 
-Contracts are authored under [`src/types/agent.ts`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/agent.ts) and [`src/types/ipc.ts`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/ipc.ts):
-- [`CoderPlanSpec`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/agent.ts): Blueprint formulated by the Architect and dispatched to the Coder.
-- [`ReviewFeedback`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/agent.ts): Critique and approval decision from the Architect.
-- [`AgentTrajectoryStep`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/agent.ts): Step tracking for ATIF session recording.
-- [`AutonomousLoopResult`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/agent.ts): Final synthesis result delivered to Side Panel host.
+Contracts are authored under [`src/types/agent.ts`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/agent.ts), [`src/types/simulation.ts`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/simulation.ts), [`src/types/verification.ts`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/verification.ts), and [`src/types/ipc.ts`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/ipc.ts):
+- [`PedagogySpec`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/simulation.ts): `coreInsight`, `prerequisites`, `misconception`, `ahaExperiment`, and `symbolMap`.
+- [`SimulationExplanation`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/simulation.ts): `insight`, `legend`, and `tour`.
+- [`CoderPlanSpec`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/agent.ts): Blueprint formulated by the Architect and dispatched to the Coder.
+- [`RevisionContext`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/agent.ts): Previous code, diagnostics, stack traces, and critique for code patching.
+- [`QualityFlag`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/agent.ts): Explicit flags emitted when degraded fallback paths are taken.
+- [`ReviewFeedback`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/agent.ts): Critique and approval decision from the Architect.
+- [`AutonomousLoopResult`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/agent.ts): Final synthesis result delivered to Side Panel host with quality flags, `pedagogy`, and `explanation`.
 
 ---
 
@@ -286,5 +233,10 @@ Contracts are authored under [`src/types/agent.ts`](file:///Users/waqqasmeraj/De
 | **A2** | Micro-Status Length Bound | Model produces 12-word status text | `validateMicroStatus` evaluated | Clamped strictly to $\le 5$ words on a single line | `tests/agent_orchestrator.test.ts` |
 | **A3** | Sandbox Snapshot Capture | Module renders canvas in sandbox | Preflight test completes | Returns `snapshotUrl` containing valid image data URI | `tests/agent_orchestrator.test.ts` |
 | **A4** | Visual Defect Critique Loop | Coder renders clipped mass; Architect inspects screenshot | Architect review evaluated | Emits `approved: false` with targeted critique and direction | `tests/agent_orchestrator.test.ts` |
-| **A5** | Code Revision Convergence | Coder applies Architect's direction | Second turn evaluated | Architect emits `approved: true` and simulation mounts cleanly | `tests/agent_orchestrator.test.ts` |
-| **A6** | Runtime Crash Recovery | Coder produces code throwing runtime exception | Sandbox detects exception | Error stack fed directly to Coder; patches code successfully | `tests/agent_orchestrator.test.ts` |
+| **A5** | Code Revision Patching | Coder receives previous code and critique | Second turn evaluated | Patches previous code rather than restarting; passes review | `tests/agent_orchestrator.test.ts` |
+| **A6** | Runtime Crash Recovery | Coder produces code throwing runtime exception | Sandbox detects exception | Error stack & params fed to Coder; patches code successfully | `tests/agent_orchestrator.test.ts` |
+| **A7** | Multimodal Image Payload | Review prompt assembled for vision provider | `buildArchitectReviewPrompt` evaluated | Attaches raster image objects to `images` payload, not text truncations | `tests/agent_orchestrator.test.ts` |
+| **A8** | Loud Fallback Quality Flags | Review output unparseable JSON | Review evaluation fails | Rejects approval, records `REVIEW_UNPARSEABLE` flag in `AutonomousLoopResult` | `tests/agent_orchestrator.test.ts` |
+| **A9** | Pedagogy & Explanation Propagation | Architect emits `pedagogy` & `explanation` in `delegate_to_coder` | `executeAutonomousSimulationLoop` evaluated | Forwards full source context, equations, DOM context, pedagogy, and explanation to Coder and returns `explanation` on result | `tests/agent_orchestrator.test.ts` |
+
+

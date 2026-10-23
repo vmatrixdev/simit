@@ -50,7 +50,7 @@ export async function resolveActiveViewport(contextViewport?: { width: number; h
 
   try {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      const res = await chrome.storage.local.get('simit_sidepanel_viewport');
+      const res: Record<string, any> = await chrome.storage.local.get('simit_sidepanel_viewport');
       if (res && res.simit_sidepanel_viewport && res.simit_sidepanel_viewport.width > 0) {
         lastKnownSidepanelViewport = {
           width: Math.max(320, Math.round(res.simit_sidepanel_viewport.width)),
@@ -325,7 +325,8 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
     const evolutionChips = extractOrGenerateChips(
       loopResult.code,
       loopResult.parameters,
-      classification.archetype
+      classification.archetype,
+      loopResult.explanation
     );
 
     const sessionRecord: SessionRecord = {
@@ -367,12 +368,16 @@ export async function orchestrateSimulationGeneration(harvestedContext: Harveste
       type: 'SIMULATION_READY',
       code: loopResult.code,
       parameters: loopResult.parameters,
+      ...(loopResult.explanation ? { explanation: loopResult.explanation } : {}),
       atifTrajectory: loopResult.atifTrajectory,
       sessionId,
       versionIndex: 1,
       versionLabel: 'v1',
       evolutionChips,
-      routingDecision
+      routingDecision,
+      qualityFlags: loopResult.qualityFlags || [],
+      reviewMode: loopResult.reviewMode,
+      diagnostics: loopResult.diagnostics || []
     });
   } else {
     updateGenerationProgress(

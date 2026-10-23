@@ -5,6 +5,7 @@
 
 import { GenerationPromptPayload, GenerationResponse, IModelProvider, ProviderType } from '../types/models';
 import { extractSimulationTags } from '../runtime/preflight';
+import { toGeminiParts } from './multimodal';
 
 export class GoogleGeminiProvider implements IModelProvider {
   readonly type: ProviderType = 'google-gemini';
@@ -34,6 +35,10 @@ export class GoogleGeminiProvider implements IModelProvider {
     return true;
   }
 
+  supportsVision(): boolean {
+    return true;
+  }
+
   async generateSimulation(payload: GenerationPromptPayload): Promise<GenerationResponse> {
     if (!this.apiKey) {
       throw new Error('Google Gemini API key is not configured.');
@@ -50,9 +55,11 @@ export class GoogleGeminiProvider implements IModelProvider {
 
     if (shouldUseThinking) {
       generationConfig.thinking_config = {
-        thinking_budget: 2048
+        thinking_budget: payload.thinkingBudgetTokens || 2048
       };
     }
+
+    const userParts = toGeminiParts(payload.userPrompt, payload.images);
 
     const body = {
       system_instruction: {
@@ -61,7 +68,7 @@ export class GoogleGeminiProvider implements IModelProvider {
       contents: [
         {
           role: 'user',
-          parts: [{ text: payload.userPrompt }]
+          parts: userParts
         }
       ],
       generationConfig

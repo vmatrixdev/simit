@@ -20,6 +20,18 @@ html, body {
   overflow: hidden;
 }
 
+body.has-controls-drawer #viewport-stage {
+  height: calc(100% - 44px);
+}
+
+body.has-explanation-bar #viewport-stage {
+  height: calc(100% - 58px);
+}
+
+body.has-controls-drawer.has-explanation-bar #viewport-stage {
+  height: calc(100% - 102px);
+}
+
 #viewport-stage.is-panning {
   cursor: grab;
 }
@@ -45,6 +57,12 @@ html, body {
   display: block;
 }
 
+#sim-root .simit-tour-highlight {
+  outline: 2px solid #38bdf8 !important;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.55) !important;
+  border-radius: 4px;
+}
+
 /* Bottom-Left Hover-Only Viewport Controls Pill */
 #viewport-controls {
   position: absolute;
@@ -64,6 +82,18 @@ html, body {
   opacity: 0.15;
   transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s ease;
   user-select: none;
+}
+
+body.has-controls-drawer #viewport-controls {
+  bottom: 54px;
+}
+
+body.has-explanation-bar #viewport-controls {
+  bottom: 68px;
+}
+
+body.has-controls-drawer.has-explanation-bar #viewport-controls {
+  bottom: 112px;
 }
 
 #viewport-controls:hover,
@@ -123,22 +153,156 @@ body:hover #viewport-controls {
   margin: 0 2px;
 }
 
-#pane-dock {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 230px;
-  max-width: calc(100% - 20px);
-  z-index: 1000;
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.12);
+/* Host-Owned Guided Tour & Symbol Legend Bar */
+#explanation-dock {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 950;
+  background: rgba(15, 23, 42, 0.94);
+  border-top: 1px solid rgba(56, 189, 248, 0.22);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 5px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: #e2e8f0;
+}
+
+body.has-controls-drawer #explanation-dock {
+  bottom: 38px;
+}
+
+.explanation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.explanation-header::-webkit-scrollbar {
+  display: none;
+}
+
+.explanation-insight {
+  font-weight: 500;
+  color: #f8fafc;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 auto;
+}
+
+.explanation-legend {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.legend-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  font-size: 10px;
+  color: #cbd5e1;
+  white-space: nowrap;
+}
+
+.legend-swatch {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.legend-symbol {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700;
+  color: #38bdf8;
+}
+
+.tour-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+}
+
+.tour-btn {
+  background: rgba(56, 189, 248, 0.14);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.tour-btn:hover {
+  background: rgba(56, 189, 248, 0.26);
+}
+
+.tour-step-indicator {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.tour-caption-wrap {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tour-caption {
+  color: #e2e8f0;
+}
+
+.tour-hint {
+  font-size: 10px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* Collapsible Bottom Controls Drawer (never overlaps the stage canvas when collapsed) */
+#pane-dock {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  max-height: 220px;
+  z-index: 1000;
+  border-radius: 10px 10px 0 0;
+  box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.55), 0 -1px 0 rgba(255, 255, 255, 0.12);
+  overflow-x: hidden;
+  overflow-y: auto;
   user-select: none;
-  touch-action: none;
-  --tp-base-background-color: rgba(15, 23, 42, 0.9);
+  touch-action: pan-y;
+  --tp-base-background-color: rgba(15, 23, 42, 0.96);
   --tp-base-shadow-color: rgba(0, 0, 0, 0.5);
-  --tp-container-background-color: rgba(30, 41, 59, 0.65);
-  --tp-input-background-color: rgba(10, 15, 29, 0.75);
+  --tp-container-background-color: rgba(30, 41, 59, 0.75);
+  --tp-input-background-color: rgba(10, 15, 29, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   transition: opacity 0.15s ease, box-shadow 0.15s ease;
@@ -148,35 +312,29 @@ body:hover #viewport-controls {
   display: none !important;
 }
 
-/* Draggable grab cursor & drag handle indicator on Tweakpane header */
+#pane-dock .tp-rotv {
+  width: 100%;
+}
+
+/* Drawer header bar styling */
 #pane-dock .tp-rotv_b {
-  cursor: grab;
+  cursor: pointer;
   user-select: none;
   display: flex;
   align-items: center;
-  padding-left: 8px;
+  min-height: 36px;
+  padding-left: 10px;
 }
 
 #pane-dock .tp-rotv_b::before {
-  content: "⋮⋮";
-  font-size: 13px;
+  content: "☰";
+  font-size: 12px;
   line-height: 1;
-  color: rgba(255, 255, 255, 0.45);
-  margin-right: 6px;
-  letter-spacing: -1px;
+  color: rgba(255, 255, 255, 0.55);
+  margin-right: 8px;
 }
 
 #pane-dock .tp-rotv_b:hover::before {
   color: #38bdf8;
-}
-
-#pane-dock.is-dragging {
-  opacity: 0.92;
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.75), 0 0 0 1.5px rgba(99, 102, 241, 0.65);
-  cursor: grabbing !important;
-}
-
-#pane-dock.is-dragging .tp-rotv_b {
-  cursor: grabbing !important;
 }
 

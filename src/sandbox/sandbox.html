@@ -57,6 +57,24 @@
     </button>
   </div>
 
+  <!-- Host-Owned Guided Tour & Symbol Legend Bar -->
+  <div id="explanation-dock" class="explanation-dock" style="display: none;">
+    <div id="explanation-header" class="explanation-header">
+      <span id="explanation-insight" class="explanation-insight"></span>
+      <div id="explanation-legend" class="explanation-legend"></div>
+    </div>
+    <div id="tour-bar" class="tour-bar" style="display: none;">
+      <button id="btn-tour-prev" class="tour-btn" type="button" title="Previous Tour Step">‹ Prev</button>
+      <span id="tour-step-indicator" class="tour-step-indicator">Step 1 of 1</span>
+      <div class="tour-caption-wrap">
+        <span id="tour-caption" class="tour-caption"></span>
+        <span id="tour-try-this" class="tour-hint tour-try-this" style="display: none;"></span>
+        <span id="tour-notice-that" class="tour-hint tour-notice-that" style="display: none;"></span>
+      </div>
+      <button id="btn-tour-next" class="tour-btn" type="button" title="Next Tour Step">Next ›</button>
+    </div>
+  </div>
+
   <div id="pane-dock"></div>
   <script type="module" src="sandbox.ts"></script>
 </body>

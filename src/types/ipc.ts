@@ -8,7 +8,8 @@
  */
 
 import { HarvestedContext } from './harvester';
-import { ParameterDefinition, ParameterState } from './simulation';
+import { ParameterDefinition, ParameterState, SimulationExplanation } from './simulation';
+import { VerificationOptions, VerificationReport } from './verification';
 
 // ==========================================
 // 1. Content Script <-> Service Worker
@@ -34,6 +35,8 @@ export interface PreFlightTestRequest {
   rawCode: string;
   timeoutMs: number;
   captureSnapshot?: boolean;
+  /** Verification harness options (docs/specs/simulation_verification.md). When present, the full soak + sweep runs. */
+  verification?: VerificationOptions;
 }
 
 export interface PreFlightTestSuccessResponse {
@@ -42,7 +45,10 @@ export interface PreFlightTestSuccessResponse {
   status: 'ok';
   validatedCode: string;
   parameters: ParameterDefinition[];
+  explanation?: SimulationExplanation;
   snapshotUrl?: string;
+  /** Full verification report. status 'ok' here means report.status === 'pass'. */
+  report?: VerificationReport;
 }
 
 export interface PreFlightTestErrorResponse {
@@ -52,6 +58,8 @@ export interface PreFlightTestErrorResponse {
   errorMessage: string;
   errorStack?: string;
   snapshotUrl?: string;
+  /** Full verification report including error diagnostics and any frames captured before failure. */
+  report?: VerificationReport;
 }
 
 export type PreFlightTestResponse = PreFlightTestSuccessResponse | PreFlightTestErrorResponse;
@@ -64,6 +72,7 @@ export interface SandboxInitSimulationMessage {
   type: 'SANDBOX_INIT_SIMULATION';
   code: string;
   initialParams?: ParameterState;
+  explanation?: SimulationExplanation;
   captureSnapshot?: boolean;
 }
 
@@ -76,16 +85,26 @@ export interface SandboxDestroyMessage {
   type: 'SANDBOX_DESTROY';
 }
 
+/** Offscreen harness -> sandbox: run the full verification protocol (docs/specs/simulation_verification.md#2). */
+export interface SandboxVerifySimulationMessage {
+  type: 'SANDBOX_VERIFY_SIMULATION';
+  requestId: string;
+  code: string;
+  options: VerificationOptions;
+}
+
 export type HostToSandboxMessage =
   | SandboxInitSimulationMessage
   | SandboxUpdateParametersMessage
-  | SandboxDestroyMessage;
+  | SandboxDestroyMessage
+  | SandboxVerifySimulationMessage;
 
 export interface SandboxSimulationReadyMessage {
   type: 'SANDBOX_SIMULATION_READY';
   title: string;
   description: string;
   parameters: ParameterDefinition[];
+  explanation?: SimulationExplanation;
   snapshotUrl?: string;
 }
 
@@ -104,14 +123,41 @@ export interface SandboxParametersChangedMessage {
   params: ParameterState;
 }
 
+/** Sandbox -> offscreen harness: emitted exactly once per SANDBOX_VERIFY_SIMULATION, after all phases or on timeout. */
+export interface SandboxVerificationReportMessage {
+  type: 'SANDBOX_VERIFICATION_REPORT';
+  requestId: string;
+  report: VerificationReport;
+}
+
 export type SandboxToHostMessage =
   | SandboxSimulationReadyMessage
   | SandboxRuntimeErrorMessage
-  | SandboxParametersChangedMessage;
+  | SandboxParametersChangedMessage
+  | SandboxVerificationReportMessage;
 
 // ==========================================
 // 4. Side Panel Host <-> Service Worker
 // ==========================================
+
+export interface SimulationReadyMessage {
+  type: 'SIMULATION_READY';
+  code: string;
+  parameters: ParameterDefinition[];
+  explanation?: SimulationExplanation;
+  initialParams?: ParameterState;
+  atifTrajectory?: any;
+  sessionId?: string;
+  versionId?: string;
+  versionIndex?: number;
+  versionLabel?: string;
+  evolutionChips?: any[];
+  routingDecision?: any;
+  qualityFlags?: string[];
+  reviewMode?: string;
+  diagnostics?: any[];
+  isOptimistic?: boolean;
+}
 
 export interface InteractiveRepairRequestMessage {
   type: 'REPAIR_INTERACTIVE_SIM';
