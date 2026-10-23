@@ -1,4 +1,4 @@
-# Technical Specification: Hybrid Multi-Model Routing & Cloud Escalation
+# Technical Specification: Hybrid Multi-Model Routing
 
 **Status:** Approved & Living Specification  
 **Domain:** Model Orchestration & Hybrid Tier Routing  
@@ -12,16 +12,16 @@
 
 On-device models (such as **Gemini Nano** via the Chrome Prompt API) provide instant, zero-cost, private simulation generation, but their parameter capacity and token context are limited. Conversely, frontier cloud models (**Claude 3.5 Sonnet**, **Gemini 2.5 Flash**) excel at complex differential systems, advanced physics calculations, and multi-stage state machines, but incur monetary cost and API key setup.
 
-The **Hybrid Multi-Model Routing & Cloud Escalation** subsystem establishes:
+The **Hybrid Multi-Model Routing** subsystem establishes:
 1. **Two-Tier Model Topology**:
    - **Tier 1 (On-Device Local)**: Gemini Nano / Gemma via Chrome Prompt API. Primary default for upfront archetype triage, parameter boundary extraction, basic Cartesian explorers, and concept DAGs.
    - **Tier 2 (Frontier Cloud / BYOK)**: Claude 3.5 Sonnet, Gemini 2.5 Flash, or OpenAI-compatible/Ollama. Used for high-complexity models requiring advanced math or multi-stage dynamics.
-2. **Autonomous Complexity Assessment**: Evaluates mathematical density, equation order, and discrete state requirements to recommend the optimal execution tier.
-3. **1-Click Cloud Escalation**: A prominent UI action in the Side Panel header (**"⚡ Escalate to Cloud"**) empowering users to seamlessly re-synthesize or enhance complex simulations with frontier models.
+2. **Autonomous Complexity Assessment**: Evaluates mathematical density, equation order, and discrete state requirements to recommend or automatically route to the optimal execution tier.
+3. **Transparent Provider Display**: Clearly badges the active provider in the UI without cluttering the interface with manual escalation buttons.
 
 ---
 
-## 2. Two-Tier Routing & Escalation Architecture
+## 2. Two-Tier Routing Architecture
 
 ```mermaid
 flowchart TD
@@ -29,17 +29,13 @@ flowchart TD
     Assessor --> Decision{"Complexity Assessment"}
 
     Decision -->|"Low / Medium Complexity<br/>(Score < 0.7)"| Tier1["Tier 1: On-Device Gemini Nano<br/>(Zero Cost, Local Privacy, Fast TTFT)"]
-    Decision -->|"High Complexity & Auto-Escalate<br/>(Score >= 0.7)"| Tier2["Tier 2: Frontier BYOK Cloud<br/>(Claude 3.5 Sonnet / Gemini Flash)"]
+    Decision -->|"High Complexity & Auto-Route<br/>(Score >= 0.7)"| Tier2["Tier 2: Frontier BYOK Cloud<br/>(Claude 3.5 Sonnet / Gemini Flash)"]
 
     Tier1 --> Preflight1["Offscreen Pre-Flight Harness"]
     Tier2 --> Preflight2["Offscreen Pre-Flight Harness"]
 
-    Preflight1 -->|"Mounts v1 Simulation"| UI["Side Panel UI Host"]
-    Preflight2 -->|"Mounts v1 Simulation"| UI
-
-    UI -->|"User Clicks '⚡ Escalate to Cloud'"| ManualEscalate["Cloud Escalation Dispatcher"]
-    ManualEscalate --> Tier2
-    Preflight2 -.->|"Pushes v2 (trigger: cloud_escalation)"| UI
+    Preflight1 -->|"Mounts Simulation"| UI["Side Panel UI Host"]
+    Preflight2 -->|"Mounts Simulation"| UI
 ```
 
 ---

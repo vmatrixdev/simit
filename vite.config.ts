@@ -9,11 +9,11 @@ export default defineConfig({
     modulePreload: false,
     rollupOptions: {
       input: {
-        sidepanel: resolve(__dirname, 'src/sidepanel/sidepanel.html'),
-        sandbox: resolve(__dirname, 'src/sandbox/sandbox.html'),
-        offscreen: resolve(__dirname, 'src/offscreen/offscreen.html'),
-        background: resolve(__dirname, 'src/background/service-worker.ts'),
-        content: resolve(__dirname, 'src/harvester/content-script.ts')
+        sidepanel: resolve(import.meta.dirname, 'src/sidepanel/sidepanel.html'),
+        sandbox: resolve(import.meta.dirname, 'src/sandbox/sandbox.html'),
+        offscreen: resolve(import.meta.dirname, 'src/offscreen/offscreen.html'),
+        background: resolve(import.meta.dirname, 'src/background/service-worker.ts'),
+        content: resolve(import.meta.dirname, 'src/harvester/content-script.ts')
       },
       output: {
         entryFileNames: (chunkInfo) => {

@@ -1,8 +1,8 @@
 # SimIt Execution Backlog
 
 **Lifecycle:** Ephemeral Backlog under `docs/backlog/`  
-**Master Specifications:** [docs/specs/index.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/index.md)  
-**Roadmap Source:** [docs/product/roadmap.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/product/roadmap.md)  
+**Master Specifications:** [docs/specs/index.md](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/index.md)  
+**Roadmap Source:** [docs/product/roadmap.md](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/product/roadmap.md)  
 
 ---
 
@@ -40,43 +40,44 @@ flowchart TD
         T11 --> T12 --> T13
     end
 
-    P1 ==> P2 ==> P3
+    subgraph P4["Phase 4: Two-Tier Autonomous Multi-Agent Loop (COMPLETED)"]
+        direction TB
+        T14["Task 14: Architect & Coder Sub-Agent Deliberation & Visual Review"]
+    end
+
+    subgraph P5["Phase 5: Robustness, Stage Geometry & Verification Soak (COMPLETED)"]
+        direction TB
+        T15["Task 15: Multimodal Image Wire Protocol & Provider Integration"]
+        T16["Task 16: Single-Source Module Contract & Stage Geometry"]
+        T17["Task 17: Pre-Flight Verification Harness & Multi-Frame Soak"]
+        T18["Task 18: Code Patching Revisions & Quality Flags"]
+        T15 --> T16 --> T17 --> T18
+    end
+
+    subgraph P6["Phase 6: Pedagogy & Guided Exploration Tour (COMPLETED)"]
+        direction TB
+        T19["Task 19: Pedagogy Spec & Source Context Forwarding"]
+        T20["Task 20: Explanation Contract & Guided Tour Bar"]
+        T19 --> T20
+    end
+
+    P1 ==> P2 ==> P3 ==> P4 ==> P5 ==> P6
 ```
 
 ---
 
-## Phase 5 Execution Checklist (Status: Completed - P0 Robustness & Verification Harness)
+## Completed Phases Summary
 
-### Step 15: Multimodal Image Wire Protocol & Provider Integration
-- [x] Implement `src/providers/multimodal.ts` mapping pure `ImageAttachment` arrays to Gemini `inline_data`, Anthropic base64 images, and OpenAI `image_url` payloads conforming to [docs/specs/model_providers.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/model_providers.md).
-- [x] Wire image attachments into `GoogleGeminiProvider`, `AnthropicProvider`, and `OpenAICompatibleProvider` conforming to [docs/specs/model_providers.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/model_providers.md).
-- [x] Pass `tests/multimodal_mapping.test.ts` unit test suite conforming to [docs/specs/model_providers.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/model_providers.md).
-
-### Step 16: Simulation Module Contract & Stage Geometry
-- [x] Implement `src/runtime/module-contract.ts` single-source prompt generator (`buildModuleContractPromptSection`), `computeStageGeometry`, and `dispatchParameterUpdate` conforming to [docs/specs/simulation_module_contract.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/simulation_module_contract.md).
-- [x] Integrate single-source contract into `agent-orchestrator.ts` and `prompt-builder.ts` eliminating duplicate Tweakpanes and docking `#pane-dock` as a bottom controls drawer conforming to [docs/specs/simulation_module_contract.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/simulation_module_contract.md).
-- [x] Pass `tests/module_contract.test.ts` unit test suite conforming to [docs/specs/simulation_module_contract.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/simulation_module_contract.md).
-
-### Step 17: Pre-Flight Verification Harness & Automated Diagnostics
-- [x] Implement pure diagnostic algorithms (`computeRasterStats`, `isBlankRender`, `scanNonFiniteText`, `detectDuplicateControls`, `detectCanvasSizing`, `buildSweepPlan`) and multi-phase `verifySimulationInStage` runner in `src/runtime/verification.ts` conforming to [docs/specs/simulation_verification.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/simulation_verification.md).
-- [x] Refactor offscreen harness (`offscreen.html`) and sandbox runtime (`sandbox.ts`) to mount visibly offscreen (`position: fixed; left: -10000px`) at active panel dimensions and soak across rAF frames conforming to [docs/specs/simulation_verification.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/simulation_verification.md).
-- [x] Implement IPC protocol handlers for `SANDBOX_VERIFY_SIMULATION` and `SANDBOX_VERIFICATION_REPORT` conforming to [docs/specs/sandbox_ipc.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/sandbox_ipc.md).
-- [x] Pass `tests/verification_harness.test.ts` unit test suite conforming to [docs/specs/simulation_verification.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/simulation_verification.md).
-
-### Step 18: Code Patching Revisions & Quality Flags
-- [x] Update `executeAutonomousSimulationLoop` in `src/runtime/agent-orchestrator.ts` to feed previous code, full stack traces, and diagnostics back to Coder on revision conforming to [docs/specs/autonomous_agent_architecture.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/autonomous_agent_architecture.md).
-- [x] Attach rendered raster frames directly to vision review prompt `images` payload conforming to [docs/specs/autonomous_agent_architecture.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/autonomous_agent_architecture.md).
-- [x] Emit explicit `QualityFlag` warnings when fallbacks or parse errors occur conforming to [docs/specs/autonomous_agent_architecture.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/autonomous_agent_architecture.md).
+- **Phase 1 (MVP Core & Harness)**: Manifest V3 extension, context harvester, sandboxed iframe, Prompt API, offscreen pre-flight harness, ATIF logger, and BYOK providers. Conforming to [docs/specs/architecture.md](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/architecture.md).
+- **Phase 2 (Declarative Runtime & Triage)**: Tweakpane, functionPlot, Cytoscape, Math.js runtime stack, `<simulation_thinking>` decoupling, and upfront archetype triage. Conforming to [docs/specs/declarative_runtime.md](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/declarative_runtime.md) and [docs/specs/archetype_triage.md](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/archetype_triage.md).
+- **Phase 3 (Evolution, Session & Routing)**: Evolution chips, refinement chat, IndexedDB session stack, context compactor, and hybrid model routing. Conforming to [docs/specs/conversational_evolution.md](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/conversational_evolution.md), [docs/specs/session_memory.md](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/session_memory.md), and [docs/specs/model_routing.md](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/model_routing.md).
+- **Phase 4 (Autonomous Multi-Agent Loop)**: Two-tier Epistemic Architect and Coder sub-agents, unconstrained deliberation, and micro-progress reporting. Conforming to [docs/specs/autonomous_agent_architecture.md](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/autonomous_agent_architecture.md).
+- **Phase 5 (Robustness & Verification Soak)**: Multimodal image wire protocol (`src/providers/multimodal.ts`), single-source contract (`src/runtime/module-contract.ts`), `StageGeometry`, pre-flight multi-frame soak verification runner (`src/runtime/verification.ts`), and code-patching revisions. Conforming to [docs/specs/simulation_module_contract.md](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/simulation_module_contract.md) and [docs/specs/simulation_verification.md](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/simulation_verification.md).
+- **Phase 6 (Pedagogy & Guided Tour)**: `PedagogySpec` (`coreInsight`, `misconception`, `ahaExperiment`), explanation contract (`insight`, `legend`, `tour`), and host-rendered tour controls (`#tour-bar`). Conforming to [docs/specs/simulation_module_contract.md](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/simulation_module_contract.md) and [docs/specs/autonomous_agent_architecture.md](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/specs/autonomous_agent_architecture.md).
 
 ---
 
-## Phase 6 Execution Checklist (Status: Completed - P1 Pedagogical Explanation & Live Guided Tour)
+## Active Backlog Tasks
 
-### Step 19: Architect Pedagogy Phase, Source Context Forwarding & Pedagogical Review
-- [x] Extend `DELEGATE_TO_CODER_TOOL`, `buildArchitectSystemPrompt`, `normalizeCoderPlan`, `buildCoderUserPrompt`, and `buildArchitectReviewPrompt` in `src/runtime/agent-orchestrator.ts` conforming to [docs/specs/autonomous_agent_architecture.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/autonomous_agent_architecture.md).
-- [x] Generate guided exploration chips from `explanation.tour` in `src/runtime/evolution.ts` and `src/background/service-worker.ts` conforming to [docs/specs/autonomous_agent_architecture.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/autonomous_agent_architecture.md).
-
-### Step 20: Module Explanation Contract & Host-Rendered Guided Tour Bar
-- [x] Implement `validateSimulationModuleContract` and document `explanation: { insight, legend, tour }` in `src/runtime/module-contract.ts` conforming to [docs/specs/simulation_module_contract.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/simulation_module_contract.md).
-- [x] Render `#explanation-dock` and `#tour-bar` in `src/sandbox/sandbox.html`, `src/sandbox/sandbox.css`, `src/sandbox/sandbox.ts`, and `src/export/standalone-exporter.ts` conforming to [docs/specs/simulation_module_contract.md](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/docs/specs/simulation_module_contract.md).
+- [ ] Chrome Web Store asset finalization and store submission conforming to [docs/product/chrome_web_store_publishing.md](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/docs/product/chrome_web_store_publishing.md).
 

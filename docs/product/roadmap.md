@@ -58,7 +58,17 @@ flowchart LR
 ### Phase 3: Conversational Evolution, Persistent Memory & Multi-Model Routing (Completed)
 - **M9: Dual-Track Evolution & Zero-Latency Parametric Tweaks**: Pre-computed evolution chips and refinement chat bar with direct Tweakpane updates bypassing LLM calls.
 - **M10: Rolling Context Window & IndexedDB Session Version Stack**: Token-efficient context compactor with static paper anchor and 2-turn window, paired with IndexedDB persistence and `v1 -> v2 -> v3` state revert.
-- **M11: Hybrid Multi-Model Routing & Cloud Escalation**: Intelligent model routing delegating quick triage and bound extraction to Gemini Nano before escalating to frontier models for complex dynamics.
+- **M11: Hybrid Multi-Model Routing**: Intelligent model routing delegating quick triage to Gemini Nano before routing high-complexity dynamics to frontier cloud models.
+
+### Phase 4: Two-Tier Autonomous Multi-Agent Loop (Completed)
+- **M12: Epistemic Architect & Coder Sub-Agent Loop**: Deliberative Architect formulating epistemic mental models and Coder sub-agent synthesizing ES modules with micro-progress reporting.
+
+### Phase 5: Stage Geometry, Robustness & Pre-Flight Verification Soak (Completed)
+- **M13: Single-Source Contract & Stage Geometry**: Universal module contract prompt, host-managed controls drawer, and safe-area inset protection eliminating duplicate panels.
+- **M14: Pre-Flight Verification Harness & Multi-Frame Soak**: Real-scale offscreen execution, multi-frame rendering soak, raster diagnostics, and boundary sweeps.
+
+### Phase 6: Pedagogy & Live Guided Tour (Completed)
+- **M15: Pedagogical Explanation & Guided Tour**: Structured explanations (`insight`, `legend`, `tour`) driving live simulation state via host-managed tour controls.
 
 ---
 
@@ -76,4 +86,8 @@ flowchart LR
 | **M8: Archetype Triage & Fallbacks** | Upfront viability triage, concept DAG & Socratic chip fallbacks | Local / BYOK | $0.00 | **Completed** |
 | **M9: Dual-Track Evolution** | Pre-computed evolution chips, refinement chat, direct Tweakpane updates | Local / BYOK | $0.00 | **Completed** |
 | **M10: Context Compactor & Session Stack** | Sliding 2-turn window + code compaction, IndexedDB persistence & revert | Local / BYOK | $0.00 | **Completed** |
-| **M11: Multi-Model Orchestration** | Autonomous escalation from Gemini Nano triage to frontier models | Hybrid Routing | Configurable | **Completed** |
+| **M11: Multi-Model Orchestration** | Autonomous complexity assessment and routing to local vs frontier models | Hybrid Routing | Configurable | **Completed** |
+| **M12: Multi-Agent Architecture** | Two-tier Architect + Coder sub-agent loop with visual verification review | Frontier / Local | Configurable | **Completed** |
+| **M13: Single-Source Contract** | Host-owned controls drawer, `StageGeometry`, safe-area protection | Universal Contract | $0.00 | **Completed** |
+| **M14: Verification Soak Harness** | Multi-frame soak, raster diagnostics, and boundary parameter sweep | Offscreen Harness | $0.00 | **Completed** |
+| **M15: Explanation & Guided Tour** | Structured pedagogy (`insight`, `legend`, `tour`) with interactive stepping | Runtime UI | $0.00 | **Completed** |

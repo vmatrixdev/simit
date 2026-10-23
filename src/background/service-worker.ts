@@ -7,14 +7,12 @@ import { HarvestContextRequest, HarvestContextResponse } from '../types/ipc';
 import { HarvestedContext } from '../types/harvester';
 import { resolveActiveProvider, loadBYOKSettings } from '../providers/resolver';
 import {
-  buildUserPromptFromContext,
   buildSimulationSystemPrompt,
-  SimulationViewport,
-  SIMULATION_SYSTEM_PROMPT
+  SimulationViewport
 } from '../providers/prompt-builder';
 import { executePreFlightRepairLoop, executeInteractiveRepair } from '../runtime/repair';
 import { AtifTrajectoryLogger } from '../export/atif-logger';
-import { runPreFlightSmokeTest, sanitizeCodeFences, extractSimulationTags } from '../runtime/preflight';
+import { runPreFlightSmokeTest } from '../runtime/preflight';
 import { classifyArchetype } from '../runtime/triage';
 import { PreFlightTestRequest, PreFlightTestResponse } from '../types/ipc';
 import { ensureOffscreenDocument } from '../runtime/offscreen-manager';

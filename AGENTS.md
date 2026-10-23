@@ -6,16 +6,18 @@
 
 ### Core User Flow & Architecture
 1. **Host Page Interaction**: User highlights text, an equation, or an algorithm on any tab, right-clicks, and selects the **"SimIt"** context menu option.
-2. **Context Harvester**: A Content Script harvests the selected snippet alongside surrounding DOM context, headings, and captions, dispatching it to the background Service Worker.
-3. **Orchestrator & Model Engine**:
+2. **Context Harvester**: A Content Script harvests the selected snippet alongside surrounding DOM context, headings, and captions, and dynamically measures active viewport dimensions.
+3. **Orchestrator & Multi-Agent Engine**:
    - The Service Worker triggers `chrome.sidePanel.open()` to immediately present the Side Panel interface.
-   - **Default Engine**: Uses on-device **Gemini Nano / local Gemma** via Chrome's built-in `ai.languageModel` (Prompt API) for zero-cost generation during development and execution.
-   - **BYOK Engine**: Fallback / configurable BYOK provider for frontier models (Claude 3.5 Sonnet, Gemini Flash, Ollama, custom URLs).
-4. **Archetype Deduction & Code Synthesis**: Converts context into self-contained HTML/CSS/JS simulation modules matching predefined visualization archetypes (e.g., Parameter Explorers, Step Scrubbers, Interactive Graph/Traversals, State Machine Inspectors).
-5. **Offscreen Pre-Flight Verification Harness**:
-   - Code is evaluated in an isolated sandbox iframe inside an offscreen document.
-   - Run-time errors trigger a 1-shot self-repair loop feeding the error stack back into the model engine.
-6. **Side Panel UI Host**: Evaluated modules are rendered inside the Chrome Side Panel with interactive controls (sliders, step scrubbers, state toggles) for instant exploration.
+   - **Epistemic Architect**: Deliberates unconstrained on pedagogy (`coreInsight`, `misconception`, `ahaExperiment`) and formulates a mental model blueprint (`CoderPlanSpec`).
+   - **Simulation Coder**: Sub-agent that compiles the blueprint into an executable ES module conforming to the single-source `SimModule` contract (`init`, `update`, `destroy`, `explanation`).
+   - **Default Engine**: Uses on-device **Gemini Nano / local Gemma** via Chrome's built-in `ai.languageModel` (Prompt API) for zero-cost generation.
+   - **BYOK Engine**: Configurable provider for frontier models (Claude 3.5 Sonnet, Gemini 2.5 Flash, Ollama, custom URLs).
+4. **Offscreen Pre-Flight Verification Soak Harness**:
+   - Code is mounted visibly offscreen at real Side Panel pixel dimensions.
+   - Executes multi-frame rendering soak (~800ms) with pure zero-token diagnostics (`isBlankRender`, `scanNonFiniteText`, `detectDuplicateControls`, raster statistics) and boundary sweeps.
+   - Detected flaws feed screenshot rasters, stack traces, and diagnostics back into the Coder for targeted code-patching revisions.
+5. **Side Panel UI Host**: Evaluated modules render inside the Chrome Side Panel with host-managed controls drawer (`#pane-dock`), live guided tour bar (`#tour-bar`), and explanation dock (`#explanation-dock`).
 
 ---
 
@@ -24,20 +26,38 @@
 ```
 simit/
 ├── .agents/                    # Agent skills, customizations, and workflows
+│   ├── rules/git-sandbox.md    # Sandboxed git execution rules
 │   └── skills/                 # Repository skills
 │       ├── artifact-graduation/ # Skill for graduating scratch tools into permanent specs
-│       └── spec-authoring/      # Skill for contract-first spec writing & harness design
-├── .gitignore                  # Git ignore rules
+│       ├── e2e-simulation-testing/ # Autonomous browser testing & visual diagnostics
+│       └── spec-authoring/      # Contract-first spec writing & harness design
 ├── AGENTS.md                   # Repository guidelines and operational specifications (this file)
-└── docs/                       # Project documentation & living specifications
-    ├── backlog/                # Ephemeral execution tasks & feature checklists
-    ├── product/                # Product requirements & business vision
-    │   ├── prd.md              # Product Requirements Document
-    │   └── roadmap.md          # High-level product roadmap
-    └── specs/                  # Permanent technical specifications & contracts
-        ├── agent_loop.md       # Generation, verification, & self-repair loop spec
-        ├── architecture.md     # Chrome Manifest V3 system architecture specification
-        └── atif_specification.md # Autonomous Archetype Deduction & Spec Harness
+├── docs/                       # Project documentation & living specifications
+│   ├── backlog/tasks.md        # Ephemeral execution tasks & feature checklists
+│   ├── product/                # Product requirements & business vision
+│   │   ├── chrome_web_store_publishing.md # Chrome Web Store guide & metadata
+│   │   ├── prd.md              # Product Requirements Document
+│   │   └── roadmap.md          # High-level product roadmap
+│   └── specs/                  # Permanent technical specifications (14 specs + index.md)
+│       ├── index.md            # Master specification registry & contract index
+│       ├── architecture.md     # System architecture specification
+│       ├── autonomous_agent_architecture.md # Two-tier multi-agent loop spec
+│       ├── simulation_module_contract.md # Single-source module contract & StageGeometry
+│       ├── simulation_verification.md # Offscreen verification soak & diagnostics
+│       └── ...                 # Complete domain specifications
+├── public/                     # Static extension manifest and icons
+├── scripts/                    # Developer tooling (setup.sh, dev.sh)
+├── src/                        # Extension source code
+│   ├── background/             # Manifest V3 Background Service Worker
+│   ├── export/                 # Standalone HTML exporter & ATIF trajectory logger
+│   ├── harvester/              # Content script DOM & math equation harvester
+│   ├── offscreen/              # Headless offscreen document verification harness
+│   ├── providers/              # Gemini Nano, Claude, Gemini Cloud, OpenAI providers
+│   ├── runtime/                # Agent orchestrator, verification, triage, session DB
+│   ├── sandbox/                # Isolated sandbox iframe & declarative library stack
+│   ├── sidepanel/              # Chrome Side Panel UI host
+│   └── types/                  # Strongly typed TypeScript domain models
+└── tests/                      # Vitest unit/integration test suites & Playwright E2E
 ```
 
 ---

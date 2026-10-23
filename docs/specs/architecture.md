@@ -16,7 +16,7 @@ flowchart TB
         direction TB
         Selection["User Highlighted Selection"]
         ContextMenu["Right-Click Context Menu<br/>'SimIt' Action"]
-        Harvester["Content Script: Context Harvester<br/>• Selective bounded scope (text, math, headings)<br/>• Captures container viewport bounds"]
+        Harvester["Content Script: Context Harvester<br/>• Selective bounded scope (text, math, headings)<br/>• Dynamic Viewport Measurement"]
         
         Selection -->|"Right-Click"| ContextMenu
         ContextMenu -->|"Triggers Harvest"| Harvester
@@ -25,62 +25,52 @@ flowchart TB
     subgraph Extension["Chrome Extension (Background & Side Panel)"]
         direction TB
         
-        subgraph Orchestrator["Service Worker & Orchestrator ($0 Cloud Overhead)"]
+        subgraph Orchestrator["Two-Tier Multi-Agent Orchestrator (Background SW)"]
             direction TB
-            MenuHandler["Trigger Listener (chrome.contextMenus)<br/>• Opens Side Panel: chrome.sidePanel.open()<br/>• Ingests Bounded Context & Viewport"]
-            Detector{"Gemini Nano<br/>Installed / Available?"}
-            LocalNano["DEFAULT: Local Gemini Nano / Gemma<br/>• Chrome Prompt API (ai.languageModel)<br/>• Zero Cost Generation"]
-            BYOK["BYOK Cloud / Custom Provider<br/>• Claude 3.5 Sonnet / Gemini Flash / Ollama<br/>• Native Hidden Thinking Support"]
-            RollingCompactor["Context Rolling Compactor<br/>• Static paper anchor<br/>• Active <simulation_code> snapshot<br/>• Sliding 2-turn window"]
-            
-            MenuHandler --> Detector
-            Detector -->|"Yes (Default)"| LocalNano
-            Detector -->|"No / Configured"| BYOK
-            LocalNano --> RollingCompactor
-            BYOK --> RollingCompactor
+            MenuHandler["Trigger Listener (chrome.contextMenus)<br/>• Opens Side Panel: chrome.sidePanel.open()"]
+            Architect["1. Epistemic Architect<br/>• Unconstrained Deliberation<br/>• Formulates Pedagogy & Mental Model"]
+            Coder["2. Simulation Coder Sub-Agent<br/>• Single-Source Module Contract<br/>• Translates Blueprint to ES Module"]
+            MenuHandler --> Architect
+            Architect -->|"Dispatches CoderPlanSpec"| Coder
         end
 
-        subgraph PreFlight["Offscreen Pre-Flight Harness (Validation Sandbox)"]
+        subgraph PreFlight["Pre-Flight Verification Harness (Offscreen Sandbox)"]
             direction TB
-            Headless["Headless Sandbox Verification<br/>• Silently evaluates code for 100ms in hidden iframe"]
-            SelfRepair{"Runtime Error?"}
-            RepairLoop["Self-Correction Loop<br/>Feeds stack trace back to Active Model"]
+            StageMount["Visible Offscreen Stage<br/>Mounts at Real Viewport (width x height)"]
+            SoakTest["Multi-Frame Soak (~800ms)<br/>• rAF Animation Soak<br/>• Raster Stats & Blank Render Diagnostics<br/>• Boundary Parameter Sweep"]
+            ReviewLoop{"Defects Detected?"}
+            PatchLoop["Multimodal Review & Revision<br/>Feeds diagnostics, screenshot & code back to Coder"]
             
-            Headless --> SelfRepair
-            SelfRepair -->|"Yes"| RepairLoop
-            RepairLoop -->|"1-Shot Repair"| Orchestrator
+            StageMount --> SoakTest
+            SoakTest --> ReviewLoop
+            ReviewLoop -->|"Defects Found"| PatchLoop
+            PatchLoop -->|"Revision Patch"| Coder
         end
 
         subgraph SidePanel["Chrome Side Panel UI Host (sidepanel.html)"]
             direction TB
-            PanelFrame["Extension Side Panel Frame<br/>(Auto-Opened on Trigger)"]
-            DualTrack["Dual-Track Controls<br/>• Pre-computed Evolution Chips<br/>• Refinement Chat Bar"]
-            VersionStack["Session Version Stack (IndexedDB)<br/>• Lightweight v1 -> v2 -> v3 snapshots<br/>• Instant state revert"]
+            PanelFrame["Extension Side Panel Frame"]
+            TourBar["Guided Tour Bar (#tour-bar)<br/>Interactive Narrative Steps"]
+            ExplanationDock["Explanation Insight & Legend Dock"]
+            ControlsDrawer["Host-Managed Controls Drawer (#pane-dock)<br/>Tweakpane Sliders, Steppers, Toggles & Buttons"]
+            VersionStack["Session Version Stack (IndexedDB)<br/>• Lightweight snapshots & instant revert"]
             
             subgraph Sandbox["Isolated Sandboxed Iframe (sandbox.html)"]
                 direction TB
-                Tweakpane["Tweakpane (v4.x)<br/>Declarative UI sliders & zero-latency updateParams()"]
-                
-                subgraph DeclarativeStack["Declarative Runtime Library Stack"]
-                    FnPlot["functionPlot (v1.x)<br/>Instant Cartesian 2D function curves"]
-                    Cytoscape["cytoscape (v3.x)<br/>Declarative DAGs, trees, topologies & concept maps"]
-                    Canvas["HTML5 Canvas 2D + anime.js (v3.x)<br/>Vector/fluid animation & timeline tweening"]
-                    KaTeX["KaTeX (v0.16.x)<br/>Mathematical typography"]
-                    D3["D3.js (v7.x pinned)<br/>Spatial scales & projections"]
-                end
-                
-                Tweakpane -->|"Zero-Latency Reactive Params"| DeclarativeStack
+                VisualStage["Full-Bleed Stage (#sim-root)<br/>Canvas 2D / anime / cytoscape / functionPlot / katex"]
             end
             
-            PanelFrame --> DualTrack
+            PanelFrame --> TourBar
+            PanelFrame --> ExplanationDock
+            PanelFrame --> VisualStage
+            PanelFrame --> ControlsDrawer
             PanelFrame --> VersionStack
-            PanelFrame --> Sandbox
         end
 
         ContextMenu -.->|"chrome.contextMenus.onClicked"| MenuHandler
         Harvester -->|"Context + Viewport Payload"| MenuHandler
-        RollingCompactor -->|"Dispatch Code Payload"| PreFlight
-        SelfRepair -->|"No: Validated Code (postMessage)"| Sandbox
+        Coder -->|"Module Code"| StageMount
+        ReviewLoop -->|"Verified & Epistemically Sound"| VisualStage
     end
 ```
 

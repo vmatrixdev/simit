@@ -46,18 +46,18 @@ flowchart TB
 
 ## 3. Contracts & Data Models
 
-Domain models are centrally defined in [`src/types/simulation.ts`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/simulation.ts):
+Domain models are centrally defined in [`src/types/simulation.ts`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/simulation.ts):
 
-- [`StageGeometry`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/simulation.ts):
+- [`StageGeometry`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/simulation.ts):
   - `width`: CSS pixel width of `#sim-root`.
   - `height`: CSS pixel height of `#sim-root` (exclusive of controls drawer and explanation bar).
   - `dpr`: Device pixel ratio clamped to `[1, 3]`.
   - `safeArea`: Inset boundaries reserved for native host overlays.
-- [`SimulationExplanation`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/simulation.ts):
+- [`SimulationExplanation`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/simulation.ts):
   - `insight`: 1-sentence plain-English takeaway rendered in `#explanation-insight`.
   - `legend`: Array of `{ symbol, meaning, color? }` badges rendered in `#explanation-legend`.
   - `tour`: Array of `{ caption, params, highlight?, tryThis?, noticeThat? }` steps rendered in `#tour-bar` (`#btn-tour-prev`, `#tour-step-indicator`, `#tour-caption`, `#btn-tour-next`). Stepping through the tour merges `step.params` into the active parameters, refreshes Tweakpane, invokes `update(params)`, and highlights any matching element via `.simit-tour-highlight`.
-- [`SimModule`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/simulation.ts):
+- [`SimModule`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/simulation.ts):
   - `explanation?`: Optional structured explanation and live parameter-driven guided tour.
   - `init(container, params, stage)`: Initializes simulation elements.
   - `update(params)`: Receives complete, updated parameter states.
@@ -67,7 +67,7 @@ Domain models are centrally defined in [`src/types/simulation.ts`](file:///Users
 
 ## 4. Single-Source Module Contract Clauses
 
-All prompts emitted to the Coder agent must verify the presence of key architectural rules defined in [`src/runtime/module-contract.ts`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/runtime/module-contract.ts):
+All prompts emitted to the Coder agent must verify the presence of key architectural rules defined in [`src/runtime/module-contract.ts`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/runtime/module-contract.ts):
 
 1. **`export_shape`**: Must produce valid ES module with `export default { title, description, parameters, explanation, init, update, destroy }`.
 2. **`host_owned_controls`**: Explicit prohibition against instantiating `new Tweakpane()` or manual HTML `<input>`/`<button>` tags.

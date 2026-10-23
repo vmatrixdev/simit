@@ -214,14 +214,14 @@ When revision is requested or runtime errors/diagnostics are caught:
 
 ## 6. Shared TypeScript Domain Contracts
 
-Contracts are authored under [`src/types/agent.ts`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/agent.ts), [`src/types/simulation.ts`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/simulation.ts), [`src/types/verification.ts`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/verification.ts), and [`src/types/ipc.ts`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/ipc.ts):
-- [`PedagogySpec`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/simulation.ts): `coreInsight`, `prerequisites`, `misconception`, `ahaExperiment`, and `symbolMap`.
-- [`SimulationExplanation`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/simulation.ts): `insight`, `legend`, and `tour`.
-- [`CoderPlanSpec`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/agent.ts): Blueprint formulated by the Architect and dispatched to the Coder.
-- [`RevisionContext`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/agent.ts): Previous code, diagnostics, stack traces, and critique for code patching.
-- [`QualityFlag`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/agent.ts): Explicit flags emitted when degraded fallback paths are taken.
-- [`ReviewFeedback`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/agent.ts): Critique and approval decision from the Architect.
-- [`AutonomousLoopResult`](file:///Users/waqqasmeraj/.gemini/antigravity/worktrees/simit/improve_simulation_evaluation/src/types/agent.ts): Final synthesis result delivered to Side Panel host with quality flags, `pedagogy`, and `explanation`.
+Contracts are authored under [`src/types/agent.ts`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/agent.ts), [`src/types/simulation.ts`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/simulation.ts), [`src/types/verification.ts`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/verification.ts), and [`src/types/ipc.ts`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/ipc.ts):
+- [`PedagogySpec`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/simulation.ts): `coreInsight`, `prerequisites`, `misconception`, `ahaExperiment`, and `symbolMap`.
+- [`SimulationExplanation`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/simulation.ts): `insight`, `legend`, and `tour`.
+- [`CoderPlanSpec`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/agent.ts): Blueprint formulated by the Architect and dispatched to the Coder.
+- [`RevisionContext`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/agent.ts): Previous code, diagnostics, stack traces, and critique for code patching.
+- [`QualityFlag`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/agent.ts): Explicit flags emitted when degraded fallback paths are taken.
+- [`ReviewFeedback`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/agent.ts): Critique and approval decision from the Architect.
+- [`AutonomousLoopResult`](file:///Users/waqqasmeraj/Developer/vmatrixdev/simit/src/types/agent.ts): Final synthesis result delivered to Side Panel host with quality flags, `pedagogy`, and `explanation`.
 
 ---
 
